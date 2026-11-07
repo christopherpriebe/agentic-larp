@@ -1,10 +1,10 @@
 """What every payoff app shares: its context, the screen protocol, and the loop."""
 
+import random
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from contextlib import nullcontext
-from dataclasses import dataclass
-from enum import StrEnum
+from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from typing import Protocol, TypeAlias
 
@@ -17,13 +17,6 @@ ENTRY_POINT_GROUP = "agentic_larp.apps"
 _MAX_DT = 0.25
 
 
-class Outcome(StrEnum):
-    """How an app ends: with a flourish, or with a meltdown."""
-
-    SUCCESS = "success"
-    FAIL = "fail"
-
-
 @dataclass(frozen=True, slots=True)
 class AppContext:
     """Everything an app gets when it launches.
@@ -34,7 +27,8 @@ class AppContext:
         auto: Exit on its own after this many seconds (demo mode), or never.
         fps: Frames per second.
         keys: Key source to read from; ``None`` reads the real keyboard.
-        outcome: Whether the app should end well or break and melt down.
+        rng: Random source for anything the app picks at random.
+        flags: Free-form session state; ``ending=meltdown`` dooms the app.
     """
 
     console: Console
@@ -42,7 +36,8 @@ class AppContext:
     auto: float | None = None
     fps: int = 20
     keys: KeySource | None = None
-    outcome: Outcome = Outcome.SUCCESS
+    rng: random.Random = field(default_factory=random.Random)
+    flags: Mapping[str, str] = field(default_factory=dict)
 
 
 class Screen(Protocol):

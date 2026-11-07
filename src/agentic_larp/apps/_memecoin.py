@@ -8,9 +8,10 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
+from agentic_larp.apps._base import AppContext
 from agentic_larp.apps._chart import draw_chart, make_ticker
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 FAIL_ERRORS = (
@@ -19,6 +20,9 @@ FAIL_ERRORS = (
     "telegram admin left the chat",
     "slippage: 100%",
     "contract: ownership was never renounced",
+)
+MELTDOWN = Meltdown(
+    errors=FAIL_ERRORS, reveal="jk. the rug was just a very flat carpet."
 )
 HYPE = (
     "📣 telegram: WEN MOON?? soon. very soon.",
@@ -48,7 +52,8 @@ class MemecoinScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.symbol = make_ticker(context.task)
         self.prices: deque[float] = deque([10.0], maxlen=400)
         self.holders = _HOLDER_START
@@ -87,11 +92,7 @@ class MemecoinScreen:
             ``False`` once a failing launch has finished collapsing.
         """
         self.clock += dt
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.clock
             self.feed.append(("bold red", "🐋 dev wallet sold 98% of supply"))
             self.feed.append(("bold red", "💧 liquidity removed"))
@@ -154,7 +155,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         screen,
-        FAIL_ERRORS,
-        f"🚀 {screen.symbol} did a 100x. you are early. you are always early.",
-        "it was a rug. it is always a rug.",
+        MELTDOWN,
+        success=f"🚀 {screen.symbol} did a 100x. you are early. you are always early.",
+        failure="it was a rug. it is always a rug.",
     )

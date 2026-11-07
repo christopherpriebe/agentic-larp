@@ -8,8 +8,8 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome, run_loop
-from agentic_larp.apps._meltdown import run_meltdown
+from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
 GREEN = "#39ff14"
 STAGES = ("SCANNING", "DUMPING MEMORY", "CRACKING PASSWORD", "TRACING")
@@ -20,6 +20,7 @@ FAIL_ERRORS = (
     "trace route ends at your kitchen",
     "ISP: we have notified your mother",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. the fbi van was just a delivery.")
 _RUN_SECONDS = 21.0  # the whole hack with no keys pressed
 _KEY_PROGRESS = 0.012
 _BANNER_SECONDS = 3.0
@@ -73,7 +74,8 @@ class HackerScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.progress = 0.0
         self.keystrokes = 0
         self.clock = 0.0
@@ -95,7 +97,7 @@ class HackerScreen:
     @property
     def is_failing(self) -> bool:
         """Return whether this hack ends in a trace."""
-        return self.context.outcome is Outcome.FAIL
+        return self.doomed
 
     def on_key(self, key: str) -> bool:
         """Speed the hack up, flash a banner, or log off.
@@ -248,10 +250,10 @@ def run(context: AppContext) -> None:
         context: The app's context.
     """
     screen = HackerScreen(context)
-    is_failing = context.outcome is Outcome.FAIL
+    is_failing = screen.doomed
     run_loop(replace(context, auto=None) if is_failing else context, screen)
     if screen.phase == "traced":
-        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        run_meltdown(context, screen.render(), MELTDOWN)
         context.console.print("they traced you to a starbucks. good luck.")
         return
     context.console.print(f"[{GREEN}]> connection closed. you were never here.[/]")

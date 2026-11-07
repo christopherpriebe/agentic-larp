@@ -8,8 +8,8 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome, run_loop
-from agentic_larp.apps._meltdown import decay, run_meltdown
+from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.meltdown import Meltdown, decay, is_doomed, run_meltdown
 
 NAMES = ("Ava", "Luna", "Nova", "Mia", "Ivy", "Aria", "Zoe", "Iris")
 PINK = "#ff79c6"
@@ -109,6 +109,7 @@ FAIL_ERRORS = (
     "std::bad_alloc: not enough love",
     "memory.cpp: dangling pointer to your birthday",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. she's rebooting.")
 
 
 def reply_to(text: str, rng: random.Random) -> str:
@@ -166,7 +167,8 @@ class CallScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.name = self.rng.choice(NAMES)
         self.stage = "ringing"
         self.clock = 0.0
@@ -224,11 +226,7 @@ class CallScreen:
             ``False`` a few seconds after the call ends.
         """
         self.clock += dt
-        if (
-            self.stage == "ringing"
-            and self.context.outcome is Outcome.FAIL
-            and self.clock > _AUTO_ANSWER_AT
-        ):
+        if self.stage == "ringing" and self.doomed and self.clock > _AUTO_ANSWER_AT:
             self.stage = "call"
         if self.stage in {"call", "ending"}:
             self.call_seconds += dt
@@ -256,7 +254,7 @@ class CallScreen:
 
     def _should_break(self) -> bool:
         return (
-            self.context.outcome is Outcome.FAIL
+            self.doomed
             and self.stage == "call"
             and self.broken_at is None
             and self.call_seconds > _BREAK_AT
@@ -354,12 +352,12 @@ def run(context: AppContext) -> None:
         context: The app's context.
     """
     screen = CallScreen(context)
-    is_failing = context.outcome is Outcome.FAIL
+    is_failing = screen.doomed
     run_loop(replace(context, auto=None) if is_failing else context, screen)
     if screen.stage == "declined":
         return
     if is_failing and screen.broken_at is not None:
-        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        run_meltdown(context, screen.render(), MELTDOWN)
         context.console.print(
             "she rebooted. she doesn't remember you. that's probably for the best."
         )

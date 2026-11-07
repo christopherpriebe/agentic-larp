@@ -207,6 +207,12 @@ def test_app_context_carries_the_session(console: Console) -> None:
     assert context.task == session.task
     assert context.auto == 3.0
     assert context.fps == 12
+    assert context.rng is session.rng
+    session.flags["ending"] = "meltdown"
+    context = session.app_context()
+    assert dict(context.flags) == {"ending": "meltdown"}
+    session.flags["ending"] = "success"
+    assert dict(context.flags) == {"ending": "meltdown"}  # a copy, not a view
 
 
 def test_session_defaults() -> None:

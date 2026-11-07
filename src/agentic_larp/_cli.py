@@ -28,7 +28,8 @@ from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import RunMode, Sim, SwarmSettings
 from agentic_larp._stages import LaunchStage, describe_unknown_app
 from agentic_larp._wall import PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH
-from agentic_larp.apps import DESCRIPTIONS, App, Outcome, app_registry
+from agentic_larp.apps import DESCRIPTIONS, App, app_registry
+from agentic_larp.meltdown import check_ending
 
 _NON_INTERACTIVE_AUTO = 6.0
 _MAX_AGENTS = 12
@@ -36,6 +37,7 @@ _CHROME_ROWS = 6
 _SWARM_ROWS = 5
 _INTERRUPTED = 130
 _BAD_PACK = 2
+_BAD_FLAG = 2
 _UNKNOWN_APP = 2
 
 
@@ -92,6 +94,15 @@ def _parse_grid(text: str) -> Grid:
         return Grid.parse(text)
     except LarpError as err:
         raise argparse.ArgumentTypeError(str(err)) from err
+
+
+def _parse_flag(text: str) -> tuple[str, str]:
+    key, separator, value = text.partition("=")
+    key, value = key.strip(), value.strip()
+    if not separator or not key:
+        message = f"expected KEY=VALUE, not {text!r}"
+        raise argparse.ArgumentTypeError(message)
+    return key, value
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -164,14 +175,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="how repeated lines are chosen (see --list; default random)",
     )
     parser.add_argument(
-        "--outcome",
-        choices=[outcome.value for outcome in Outcome],
-        help="how the app ends: success (default) or fail (a meltdown)",
-    )
-    parser.add_argument(
-        "--fail",
-        action="store_true",
-        help="shortcut for --outcome fail: the app breaks, then melts down",
+        "--flag",
+        action="append",
+        dest="flags",
+        default=[],
+        type=_parse_flag,
+        metavar="KEY=VALUE",
+        help=(
+            "set a session flag (repeatable; a repeated key keeps its last value); "
+            "--flag ending=meltdown melts the app down"
+        ),
     )
     parser.add_argument(
         "--auto",
@@ -245,12 +258,12 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.fail and args.outcome == Outcome.SUCCESS:
-        parser.error("--fail conflicts with --outcome success")
-    args.outcome = (
-        Outcome.FAIL if args.fail else Outcome(args.outcome or Outcome.SUCCESS)
-    )
     console = Console()
+    try:
+        check_ending(dict(args.flags))
+    except LarpError as err:
+        _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
+        return _BAD_FLAG
     apps = app_registry()
     try:
         packs = _collect_packs(args.pack or [], console)
@@ -267,23 +280,32 @@ def main(argv: list[str] | None = None) -> int:
         auto = _NON_INTERACTIVE_AUTO
     try:
         if args.play:
-            if args.play not in apps:
-                console.print(describe_unknown_app(args.play, apps))
-                return _UNKNOWN_APP
-            session = Session(
-                console=console,
-                task=" ".join(args.task) or "the thing",
-                sim=None,
-                rng=random.Random(args.seed),
-                app=args.play,
-                auto=auto,
-                outcome=args.outcome,
-            )
-            return run_flow(session, ("launch",), {"launch": LaunchStage})
+            return _run_play(args, console, apps, auto)
         return _run_show(args, console, auto, packs)
     except KeyboardInterrupt:
         console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
         return _INTERRUPTED
+
+
+def _run_play(
+    args: argparse.Namespace,
+    console: Console,
+    apps: Mapping[str, App],
+    auto: float | None,
+) -> int:
+    if args.play not in apps:
+        console.print(describe_unknown_app(args.play, apps))
+        return _UNKNOWN_APP
+    session = Session(
+        console=console,
+        task=" ".join(args.task) or "the thing",
+        sim=None,
+        rng=random.Random(args.seed),
+        app=args.play,
+        auto=auto,
+        flags=dict(args.flags),
+    )
+    return run_flow(session, ("launch",), {"launch": LaunchStage})
 
 
 def _run_show(
@@ -335,7 +357,7 @@ def _run_show(
             then=args.then,
             auto=auto,
             grid=grid,
-            outcome=args.outcome,
+            flags=dict(args.flags),
         )
         return run_flow(session, FLOW)
     except LarpError as err:

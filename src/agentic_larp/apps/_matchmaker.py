@@ -8,8 +8,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#c06a9a"
 PINK = "#ff79c6"
@@ -52,6 +53,9 @@ FAIL_ERRORS = (
     "ERR: countdown reached 00:00:00",
     "ERR: destiny.cfg not found, using defaults",
 )
+MELTDOWN = Meltdown(
+    errors=FAIL_ERRORS, reveal="jk. she was in your timezone all along."
+)
 _FAIL_LINES = (
     "the system has reassigned you mid-date",
     "your match has been reassigned to a better fit",
@@ -81,7 +85,8 @@ class MatchmakerScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.name, self.initials = self.rng.choice(MATCH_NAMES)
         self.clock = 0.0
         self.simulations = 0.0
@@ -128,11 +133,7 @@ class MatchmakerScreen:
             ``False`` once a reassigned user has finished being reassigned.
         """
         self.clock += dt
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_line = self.clock
         if self.broken_at is not None:
             self.seconds_left = max(0.0, self.seconds_left - dt * _START_SECONDS)
@@ -229,8 +230,8 @@ def run(context: AppContext) -> None:
     play(
         context,
         MatchmakerScreen(context),
-        FAIL_ERRORS,
-        "💞 1,000 of 1,000 simulations ordered the same dessert. match: 97.3%. "
+        MELTDOWN,
+        success="💞 1,000 of 1,000 simulations ordered the same dessert. match: 97.3%. "
         "the system is… happy for you.",
-        "you have been reassigned. please do not resist the algorithm. 💗",
+        failure="you have been reassigned. please do not resist the algorithm. 💗",
     )

@@ -9,9 +9,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome, run_loop
+from agentic_larp.apps._base import AppContext, run_loop
 from agentic_larp.apps._chart import draw_chart, make_ticker
-from agentic_larp.apps._meltdown import run_meltdown
+from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
 HEADLINES = (
     "Analysts call {t} 'the future, probably'",
@@ -47,6 +47,7 @@ FAIL_ERRORS = (
     "order book: empty (it was always empty)",
     "valuation: NaN",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. the SEC says hi.")
 
 
 class StonksScreen:
@@ -54,7 +55,8 @@ class StonksScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.symbol = make_ticker(context.task)
         self.prices: deque[float] = deque([10.0], maxlen=400)
         self.clock = 0.0
@@ -94,11 +96,7 @@ class StonksScreen:
             failing chart has finished crashing.
         """
         self.clock += dt
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.crashed_at is None
-            and self.clock >= _CRASH_AT
-        ):
+        if self.doomed and self.crashed_at is None and self.clock >= _CRASH_AT:
             self.crashed_at = self.clock
         if self.crashed_at is not None:
             self.prices.append(max(_MIN_PRICE, self.prices[-1] * _CRASH_FACTOR))
@@ -177,10 +175,10 @@ def run(context: AppContext) -> None:
         context: The app's context.
     """
     screen = StonksScreen(context)
-    is_failing = context.outcome is Outcome.FAIL
+    is_failing = screen.doomed
     run_loop(replace(context, auto=None) if is_failing else context, screen)
     if screen.crashed_at is not None:
-        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        run_meltdown(context, screen.render(), MELTDOWN)
         context.console.print("your portfolio is a tax write-off now. jk. (mostly)")
         return
     context.console.print(
