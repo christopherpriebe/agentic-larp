@@ -1,23 +1,18 @@
-"""The main show: a wall of fake agents furiously doing nothing until you ship it."""
+"""The agent wall: a screen of fake agents furiously doing nothing."""
 
 import math
-import re
-import time
 from collections.abc import Iterator
-from contextlib import nullcontext
-from dataclasses import dataclass
+from typing import Literal, TypeAlias
 
 from rich import box
 from rich.console import Console, ConsoleOptions, Group
 from rich.layout import Layout
-from rich.live import Live
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
 from agentic_larp._grid import Grid
-from agentic_larp._keys import Keys, KeySource
 from agentic_larp._log import LogLine
 from agentic_larp._sim import Agent, Sim, format_duration, format_tokens
 
@@ -25,19 +20,13 @@ SPINNER = "·✢✳✶✻✽✻✶✳✢"
 ACCENT = "#e8875b"
 BORDER = "#3a4a5a"
 _DIFF_STYLES = {"-": "white on #7a1f1f", "+": "white on #1f6b2c"}
-_SHIP_WORDS = re.compile(r"\b(ship|send|yolo|lgtm|merge|deploy|push)", re.IGNORECASE)
-_QUIT_WORDS = frozenset({"q", "quit", "exit", ":q"})
-_SPAWN_WORDS = frozenset({"spawn", "more", "more agents", "scale"})
 PANEL_MIN_WIDTH = 38
 PANEL_MIN_HEIGHT = 7
 _HEADER_HEIGHT = 4
 _TILE_WIDTH = 15
 _TALL_TERMINAL = 34
 _BUFFER_LIMIT = 60
-_AUTO_SHIP_DELAY = 2.5
-_LAUNCH_SECONDS = 3.2
 _LAUNCH_LINE_SECONDS = 0.45
-_MAX_DT = 0.25
 SPOTLIGHT_HOLD = 2.0
 
 
@@ -104,142 +93,89 @@ class AgentBody:
         yield Text("\n", no_wrap=True).join(lines)
 
 
-@dataclass(frozen=True, slots=True)
-class ShowSettings:
-    """How the show runs.
+Mode: TypeAlias = Literal["running", "wrapping", "ready", "launching"]
+
+
+class Wall:
+    """The agent wall: panels, the swarm strip, the header and the prompt.
+
+    The wall only draws and edits the prompt; the stages decide what a
+    submitted line means. Its :attr:`mode` picks the header and footer text.
 
     Attributes:
-        launch_label: What the launch sequence says it is starting.
-        auto: Ship by itself after this many seconds (demo mode), or never.
-        pace: Fast-forward for tests and demos. Multiplies the speed of
-            everything, including the clock and stage timings.
-        fps: Frames per second.
-        keys: Key source to read from; ``None`` reads the real keyboard.
+        sim: The swarm on show.
+        console: Where the wall is sized against.
         grid: Fixed feed grid with spotlight rotation, or ``None`` to fit the
             terminal.
-    """
-
-    launch_label: str = ""
-    auto: float | None = None
-    pace: float = 1.0
-    fps: int = 20
-    keys: KeySource | None = None
-    grid: Grid | None = None
-
-
-class Theater:
-    """Run the agent wall, and the two-step "ship it" ritual, full screen.
-
-    Stages go ``running`` → ``wrapping`` (first "ship it") → ``ready`` (all
-    agents done) → ``launching`` (second "ship it"), or ``exit`` if the user
-    leaves.
+        buffer: The prompt line being typed.
+        mode: Which stage the wall is dressed for.
+        mode_since: Simulation time the mode last changed.
+        launch_lines: The launch sequence shown while launching.
     """
 
     def __init__(
         self,
         sim: Sim,
         console: Console,
-        settings: ShowSettings | None = None,
+        *,
+        grid: Grid | None = None,
+        pace: float = 1.0,
     ) -> None:
-        settings = settings or ShowSettings()
         self.sim = sim
         self.console = console
-        self.launch_label = settings.launch_label
-        self.auto = settings.auto
-        self.pace = settings.pace
-        self.fps = settings.fps
-        self.keys = settings.keys
-        self.grid = settings.grid
+        self.grid = grid
+        self.pace = pace
         self._spotlight: list[Agent] = []
         self._shown_since: list[float] = []
         self._last_shown: dict[str, float] = {}
         self._last_swap = 0.0
         self.buffer = ""
-        self.stage = "running"
-        self.stage_at = 0.0
+        self.mode: Mode = "running"
+        self.mode_since = 0.0
         self.launch_lines: list[tuple[str, str]] = []
 
-    # ---- input ---------------------------------------------------------------
-    def handle_key(self, key: str) -> None:
-        """Apply one keypress.
+    def set_mode(self, mode: Mode) -> None:
+        """Dress the wall for a stage.
+
+        Args:
+            mode: The new mode.
+        """
+        self.mode = mode
+        self.mode_since = self.sim.now
+
+    def handle_key(self, key: str) -> str | None:
+        """Apply one keypress to the prompt.
 
         Args:
             key: A key name from :func:`agentic_larp.parse_keys`.
+
+        Returns:
+            The submitted line (stripped, possibly empty) on enter, ``"quit"``
+            on escape with an empty prompt, otherwise ``None``.
         """
         if key == "esc" and not self.buffer:
-            self.stage = "exit"
-        elif key == "enter":
-            self.submit(self.buffer.strip())
+            return "quit"
+        if key == "enter":
+            text = self.buffer.strip()
             self.buffer = ""
-        elif key == "backspace":
+            return text
+        if key == "backspace":
             self.buffer = self.buffer[:-1]
         elif key == "esc":
             self.buffer = ""
         elif len(key) == 1:
             self.buffer = (self.buffer + key)[-_BUFFER_LIMIT:]
             self.sim.poke(1.2)
+        return None
 
-    def submit(self, text: str) -> None:
-        """Act on a line the user typed.
-
-        Args:
-            text: The line, already stripped.
-        """
-        if not text:
-            if self.stage == "ready":
-                self.launch()
-        elif text.lower() in _QUIT_WORDS:
-            self.stage = "exit"
-        elif _SHIP_WORDS.search(text):
-            if self.stage in {"running", "ready"}:
-                self.sim.reports.append(("you", text))
-            if self.stage == "running":
-                self.stage, self.stage_at = "wrapping", self.sim.now
-                self.sim.ship()
-            elif self.stage == "ready":
-                self.launch()
-        elif text.lower() in _SPAWN_WORDS:
-            if self.stage == "running":
-                self.sim.spawn_agent()
-            else:
-                self.sim.reports.append(
-                    (self.sim.orchestrator, "no new agents while wrapping up.")
-                )
-        else:
-            self.sim.broadcast(text)
-
-    def launch(self) -> None:
-        """Push to main and get ready to launch the payoff app."""
-        self.stage, self.stage_at = "launching", self.sim.now
-        target = self.launch_label or "it"
-        self.launch_lines = [
-            ("● Bash(git add -A && git commit -m 'ship it')", "bold"),
-            (f"  ⎿  [main 4a20d69] ship it · {self.sim.total_calls:,} calls", "dim"),
-            ("● Bash(git push origin main --force)", "bold"),
-            ("  ⎿  ✓ pushed (no one reviewed this)", "green"),
-            (f"● Bash(./{target})", "bold"),
-            (f"  ⎿  launching {target}…", ACCENT),
-        ]
-
-    # ---- loop ----------------------------------------------------------------
     def step(self, dt: float) -> None:
-        """Advance the simulation and the stage machine by one frame.
+        """Advance the simulation and the spotlight by one frame.
 
         Args:
             dt: Real seconds since the previous frame.
         """
-        sim = self.sim
-        sim.tick(dt * self.pace)
+        self.sim.tick(dt * self.pace)
         self._rotate_spotlight()
-        if self.auto is not None and (
-            (self.stage == "running" and sim.now >= self.auto)
-            or (self.stage == "ready" and sim.now - self.stage_at > _AUTO_SHIP_DELAY)
-        ):
-            self.submit("ship it")
-        if self.stage == "wrapping" and sim.is_all_done:
-            self.stage, self.stage_at = "ready", sim.now
-            done = f"all {len(sim.agents)} agents done. ready to ship."
-            sim.reports.append((sim.orchestrator, done))
 
     def visible_agents(self) -> list[Agent]:
         """Return the agents that have a panel on screen right now.
@@ -290,44 +226,6 @@ class Theater:
         self._spotlight[cell] = incoming
         self._shown_since[cell] = now
         self._last_swap = now
-
-    @property
-    def is_launched(self) -> bool:
-        """Return whether the launch sequence has finished playing."""
-        return (
-            self.stage == "launching" and self.sim.now - self.stage_at > _LAUNCH_SECONDS
-        )
-
-    def run(self) -> bool:
-        """Run full screen until shipped or abandoned.
-
-        Returns:
-            ``True`` once shipped, ``False`` if the user left first.
-        """
-        source = self.keys or Keys()
-        with (
-            source if isinstance(source, Keys) else nullcontext(),
-            Live(
-                self.render(),
-                console=self.console,
-                screen=True,
-                auto_refresh=False,
-                transient=True,
-            ) as live,
-        ):
-            last = time.monotonic()
-            while True:
-                for key in source.read():
-                    self.handle_key(key)
-                now = time.monotonic()
-                self.step(min(_MAX_DT, now - last))
-                last = now
-                if self.stage == "exit":
-                    return False
-                if self.is_launched:
-                    return True
-                live.update(self.render(), refresh=True)
-                time.sleep(max(0.0, 1 / self.fps - (time.monotonic() - now)))
 
     # ---- rendering -------------------------------------------------------------
     def render(self) -> Layout:
@@ -387,13 +285,13 @@ class Theater:
             Four lines.
         """
         sim = self.sim
-        if self.stage in {"ready", "launching"}:
+        if self.mode in {"ready", "launching"}:
             status = Text.assemble(
                 ("✓ ", "bold green"),
                 (f"all {len(sim.agents)} agents done", "green"),
             )
         else:
-            word = "wrapping up" if self.stage == "wrapping" else "orchestrating"
+            word = "wrapping up" if self.mode == "wrapping" else "orchestrating"
             status = Text.assemble(
                 (spinner(sim.now) + " ", ACCENT), f"{word} {sim.running}"
             )
@@ -413,8 +311,8 @@ class Theater:
         top.add_row(title, Rule(style=BORDER), Text(" ") + status)
 
         lines: list[Table | Text] = [top]
-        if self.stage == "launching":
-            shown = int((sim.now - self.stage_at) / _LAUNCH_LINE_SECONDS) + 1
+        if self.mode == "launching":
+            shown = int((sim.now - self.mode_since) / _LAUNCH_LINE_SECONDS) + 1
             lines += [
                 Text(line, style=style, no_wrap=True, overflow="ellipsis")
                 for line, style in self.launch_lines[:shown][-3:]
@@ -514,7 +412,7 @@ class Theater:
         """
         sim = self.sim
         cursor = "█" if int(sim.now * 2) % 2 == 0 else " "
-        if self.stage == "ready":
+        if self.mode == "ready":
             prompt = Text.assemble(
                 ("ship it? ❯ ", "bold green"),
                 (self.buffer, "bold"),
@@ -525,10 +423,10 @@ class Theater:
             prompt = Text.assemble(
                 ("❯ ", "bold cyan"), (self.buffer, "bold"), (cursor, "cyan")
             )
-            if not self.buffer and self.stage == "running":
+            if not self.buffer and self.mode == "running":
                 prompt.append(f" Message {sim.orchestrator}…", style="dim")
             hint = "'ship it' to ship · esc to quit"
-            if self.stage != "running":
+            if self.mode != "running":
                 hint = ""
         totals = f"{sim.running}/{len(sim.agents)} running · {sim.total_calls:,} calls"
         right = Text.assemble(

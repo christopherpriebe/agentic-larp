@@ -64,6 +64,36 @@ class Screen(Protocol):
 App: TypeAlias = Callable[[AppContext], None]
 
 
+def run_frames(
+    screen: Screen,
+    source: KeySource,
+    fps: int,
+    update: Callable[[RenderableType], None],
+    auto: float | None = None,
+) -> None:
+    """Run the frame loop: keys, tick, draw, sleep, until the screen exits.
+
+    Args:
+        screen: The screen to feed keys and time to.
+        source: Where keypresses come from.
+        fps: Frames per second.
+        update: Draws one rendered frame.
+        auto: Stop after this many seconds (demo mode), or never.
+    """
+    start = last = time.monotonic()
+    while True:
+        if not all(screen.on_key(key) for key in source.read()):
+            return
+        now = time.monotonic()
+        if not screen.tick(min(_MAX_DT, now - last)):
+            return
+        last = now
+        if auto is not None and now - start > auto:
+            return
+        update(screen.render())
+        time.sleep(max(0.0, 1 / fps - (time.monotonic() - now)))
+
+
 def run_loop(context: AppContext, screen: Screen) -> None:
     """Drive a screen full screen until it, the user, or demo mode ends it.
 
@@ -82,18 +112,13 @@ def run_loop(context: AppContext, screen: Screen) -> None:
             transient=True,
         ) as live,
     ):
-        start = last = time.monotonic()
-        while True:
-            if not all(screen.on_key(key) for key in source.read()):
-                return
-            now = time.monotonic()
-            if not screen.tick(min(_MAX_DT, now - last)):
-                return
-            last = now
-            if context.auto is not None and now - start > context.auto:
-                return
-            live.update(screen.render(), refresh=True)
-            time.sleep(max(0.0, 1 / context.fps - (time.monotonic() - now)))
+        run_frames(
+            screen,
+            source,
+            context.fps,
+            lambda frame: live.update(frame, refresh=True),
+            context.auto,
+        )
 
 
 DESCRIPTIONS = {

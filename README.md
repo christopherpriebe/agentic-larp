@@ -412,7 +412,9 @@ src/agentic_larp/
 ├── _keys.py         # non-blocking keyboard input (POSIX and Windows)
 ├── _scenarios.py    # picking and generating scenarios
 ├── _sim.py          # the fake agents
-├── _theater.py      # the agent wall and the ship-it stages
+├── _flow.py         # Session, Stage, run_flow: the pluggable stage pipeline
+├── _stages.py       # the built-in stages (work, wrap, ready, ship, ...)
+├── _wall.py         # the agent wall screen
 └── apps/            # payoff apps; AppContext, Screen, run_loop are public
 ```
 
