@@ -17,7 +17,7 @@ from agentic_larp._grid import Grid
 from agentic_larp._keys import Keys, KeySource
 from agentic_larp._sim import Sim
 from agentic_larp._wall import Mode, Wall
-from agentic_larp.apps._base import AppContext, Outcome, Screen, run_frames
+from agentic_larp.apps._base import AppContext, Screen, run_frames
 
 if sys.version_info >= (3, 12):
     pass
@@ -78,7 +78,6 @@ class Session:
         keys: Key source to read from; ``None`` reads the real keyboard.
         grid: Fixed feed grid with spotlight rotation, or ``None``.
         pace: Fast-forward for tests and demos.
-        outcome: Whether the app should end well or melt down.
         flags: Free-form state for plugin stages.
         exit_code: The process exit code the run ends with.
         wall: The agent wall; the first wall stage creates it and the later
@@ -96,7 +95,6 @@ class Session:
     keys: KeySource | None = None
     grid: Grid | None = None
     pace: float = 1.0
-    outcome: Outcome = Outcome.SUCCESS
     flags: dict[str, str] = field(default_factory=dict)
     exit_code: int = 0
     wall: Wall | None = None
@@ -109,7 +107,7 @@ class Session:
         """Build the context a payoff app launches with.
 
         Returns:
-            The console, task, auto, fps, keys and outcome of this session.
+            The console, task, auto, fps, keys, rng and flags of this session.
         """
         return AppContext(
             console=self.console,
@@ -117,7 +115,8 @@ class Session:
             auto=self.auto,
             fps=self.fps,
             keys=self.keys,
-            outcome=self.outcome,
+            rng=self.rng,
+            flags=dict(self.flags),
         )
 
     def release_screen(self) -> None:

@@ -11,8 +11,8 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome, run_loop
-from agentic_larp.apps._meltdown import run_meltdown
+from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
 REGIONS = (
     "us-east-1",
@@ -63,6 +63,7 @@ FAIL_ERRORS = (
     "healthcheck: [object Object]",
     "CEO is typing...",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. prod is fine. (it was staging.)")
 
 
 def sparkline(values: list[float]) -> str:
@@ -84,7 +85,8 @@ class DeployScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.progress = dict.fromkeys(REGIONS, 0.0)
         self.speed = {region: self.rng.uniform(4, 14) for region in REGIONS}
         self.traffic = deque(
@@ -104,7 +106,7 @@ class DeployScreen:
     @property
     def is_failing(self) -> bool:
         """Return whether this rollout is going to break."""
-        return self.context.outcome is Outcome.FAIL
+        return self.doomed
 
     def on_key(self, key: str) -> bool:
         """Speed things up, or leave.
@@ -270,10 +272,10 @@ def run(context: AppContext) -> None:
         context: The app's context.
     """
     screen = DeployScreen(context)
-    is_failing = context.outcome is Outcome.FAIL
+    is_failing = screen.doomed
     run_loop(replace(context, auto=None) if is_failing else context, screen)
     if screen.broken_at is not None:
-        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        run_meltdown(context, screen.render(), MELTDOWN)
         context.console.print(
             "🔥 prod was down for 9 seconds. nobody noticed. blame the intern."
         )

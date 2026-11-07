@@ -54,7 +54,7 @@ larp --play hacker                # skip the agents, go straight to an app
 larp --length 40                  # the swarm takes about 40s to converge (default 20)
 larp --forever                    # never converges: the agents keep finding more to do
 larp --auto 8                     # ships itself after 8s of work (for screen recordings)
-larp --fail                       # the payoff app breaks, then melts down (jk)
+larp --flag ending=meltdown       # the payoff app breaks, then melts down (jk)
 larp --list                       # scenarios and apps
 ```
 
@@ -119,9 +119,10 @@ never promises access: tab flashes ACCESS DENIED and the footer says
 
 ### Failing on purpose
 
-Every app has a success ending (the default) and a fail ending: `--fail`, or
-`--outcome fail` (`--outcome success` is the default; combining it with
-`--fail` is an error). It works with `--play` and after a normal show, and
+Apps never break on their own. `--flag ending=meltdown` forces the meltdown;
+`--flag ending=success` (or no flag) keeps the normal ending, and any other
+value is an error. `--flag KEY=VALUE` is repeatable and sets free-form session
+flags for plugins; if you repeat a key, the last value wins. The meltdown works with `--play` and after a normal show, and
 `--then` is unaffected. The app plays normally, breaks by itself a few seconds
 in (she says something cursed, regions go red, the chart crashes, the hack gets
 traced), and then everything melts down: the frozen frame's characters
@@ -330,26 +331,36 @@ counter = "my_package.counter:run"
 
 Then run `larp --app counter` or `larp --play counter`.
 
-An app gets `context.outcome` (`Outcome.SUCCESS` by default, or
-`Outcome.FAIL`); apps that ignore it keep working. The meltdown is available to
-plugins too: `run_meltdown(context, frame, errors)` decays the given frame,
-scrolls your `errors` mixed with `SHARED_ERRORS`, shows a death screen and the
-reveal. `capture_frame(console, renderable)` turns a renderable into plain
-text lines, and `decay(lines, amount, rng)` corrupts a fraction of their
-characters (0 to 1; a larger amount corrupts a superset). A plugin that fails
-when asked to:
+An app gets `context.flags` (the `--flag` pairs) and `context.rng` (the
+session's random source). Apps melt down only when the `ending` flag is
+`meltdown`, and there is no chance involved. The meltdown is a public library,
+`agentic_larp.meltdown`, so each app builds its own: a `Meltdown` holds your
+`errors` (mixed with `shared` random `SHARED_ERRORS`), your `deaths` (a tuple
+of `DeathScreen(lines, style)`; the defaults are `EXIT_137`, `KERNEL_PANIC` and
+`BLUE_SCREEN`), your `reveal` and `note` lines, and the length of each phase.
+`is_doomed(context)` says whether to break, `play(...)` runs a screen and
+melts down if it broke, and `run_meltdown(context, frame, meltdown)` is the
+lower-level call. `capture_frame(console, renderable)` turns a renderable into
+plain text lines, and `decay(lines, amount, rng)` corrupts a fraction of their
+characters (0 to 1; a larger amount corrupts a superset). A plugin with its
+own meltdown:
 
 ```python
-from dataclasses import replace
-
 from rich.text import Text
 
-from agentic_larp.apps import AppContext, Outcome, run_loop, run_meltdown
+from agentic_larp.apps import AppContext
+from agentic_larp.meltdown import DeathScreen, Meltdown, is_doomed, play
+
+MELTDOWN = Meltdown(
+    errors=("doomed.py: it was doomed",),
+    deaths=(DeathScreen(("DOOMED", "press any key to be doomed"), "white on red"),),
+    reveal="jk. doomed.py is fine.",
+)
 
 
 class Doomed:
-    def __init__(self, *, is_doomed: bool) -> None:
-        self.is_doomed = is_doomed
+    def __init__(self, *, doomed: bool) -> None:
+        self.doomed = doomed
         self.has_broken = False
         self.seconds = 0.0
 
@@ -361,21 +372,20 @@ class Doomed:
 
     def tick(self, dt: float) -> bool:
         self.seconds += dt
-        self.has_broken = self.is_doomed and self.seconds > 5  # break after 5s
+        self.has_broken = self.doomed and self.seconds > 5  # break after 5s
         return not self.has_broken
 
 
 def run(context: AppContext) -> None:
-    is_doomed = context.outcome is Outcome.FAIL
-    # Drop auto under FAIL, or demo mode would end the app before it breaks.
-    run_context = replace(context, auto=None) if is_doomed else context
-    screen = Doomed(is_doomed=is_doomed)
-    run_loop(run_context, screen)
-    if screen.has_broken:  # esc before the break just leaves, no meltdown
-        run_meltdown(context, screen.render(), ["doomed.py: it was doomed"])
-        context.console.print("it was doomed all along.")
-    else:
-        context.console.print("all systems nominal.")
+    # play drops auto when doomed, or demo mode would end the app before it
+    # breaks; esc before the break just leaves, no meltdown.
+    play(
+        context,
+        Doomed(doomed=is_doomed(context)),
+        MELTDOWN,
+        success="all systems nominal.",
+        failure="it was doomed all along.",
+    )
 ```
 
 ### FAQ
@@ -431,6 +441,7 @@ src/agentic_larp/
 ├── _flow.py         # Session, Stage, run_flow: the pluggable stage pipeline
 ├── _stages.py       # the built-in stages (work, wrap, ready, ship, ...)
 ├── _wall.py         # the agent wall screen
+├── meltdown.py      # public meltdown library (impl in _meltdown.py)
 └── apps/            # payoff apps; AppContext, Screen, run_loop are public
 ```
 

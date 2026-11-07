@@ -7,8 +7,9 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 SOURCE = "3h14m podcast · topic: 'mindset'"
@@ -25,6 +26,7 @@ FAIL_ERRORS = (
     "clippers online: 40,000 (all clipping the same 4 seconds)",
     "unique ideas: 1 (still)",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. the full episode was 4 minutes.")
 _MAX_CLIPS = 912
 _CLIPS_PER_SECOND = 140.0
 _PENDING_PER_CLIP = 0.40 / _MAX_CLIPS
@@ -52,7 +54,8 @@ class ClipfarmScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.clock = 0.0
         self.push = 0.0
         self.clips = 0.0
@@ -93,11 +96,7 @@ class ClipfarmScreen:
         """
         self.clock += dt
         self.push = max(0.0, self.push - dt * _PUSH_DECAY)
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_line = self.clock
         if self.broken_at is not None:
             if self.clock >= self.next_line and self.fail_lines:
@@ -193,7 +192,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         ClipfarmScreen(context),
-        FAIL_ERRORS,
-        "🎬 your clip got 2M views. the full episode got 31.",
-        "link in bio (bio deleted)",
+        MELTDOWN,
+        success="🎬 your clip got 2M views. the full episode got 31.",
+        failure="link in bio (bio deleted)",
     )

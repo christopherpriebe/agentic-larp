@@ -8,8 +8,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 PRODUCTS = (
@@ -27,6 +28,7 @@ FAIL_ERRORS = (
     "Stripe: account frozen pending review",
     "tracking number 000000000 not found",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. your order is still in transit.")
 _AD_BURN_PER_MINUTE = 40.0
 _ORDER_RATE = 1.2  # orders per second
 _FEED_LENGTH = 11
@@ -46,7 +48,8 @@ class DropshipScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.clock = 0.0
         self.boost = 0.0
         self.revenue = 0.0
@@ -87,11 +90,7 @@ class DropshipScreen:
         """
         self.clock += dt
         self.boost = max(0.0, self.boost - dt * _BOOST_DECAY)
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_event = self.clock
         if self.broken_at is not None:
             if self.clock >= self.next_event and self.events:
@@ -159,7 +158,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         DropshipScreen(context),
-        FAIL_ERRORS,
-        "📦 orders shipped. customers will receive them in 6-8 weeks. or never.",
-        "your store is now a GoFundMe.",
+        MELTDOWN,
+        success="📦 orders shipped. customers will receive them in 6-8 weeks. or never.",
+        failure="your store is now a GoFundMe.",
     )

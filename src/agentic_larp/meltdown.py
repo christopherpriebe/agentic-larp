@@ -1,0 +1,43 @@
+"""The public meltdown library: build and play your app's own meltdown."""
+
+from agentic_larp._meltdown import (
+    BLUE_SCREEN,
+    DEATHS,
+    ENDING_FLAG,
+    EXIT_137,
+    KERNEL_PANIC,
+    MELTDOWN_ENDING,
+    SHARED_ERRORS,
+    SUCCESS_ENDING,
+    BreakableScreen,
+    DeathScreen,
+    Meltdown,
+    MeltdownScreen,
+    capture_frame,
+    check_ending,
+    decay,
+    is_doomed,
+    play,
+    run_meltdown,
+)
+
+__all__ = [
+    "BLUE_SCREEN",
+    "DEATHS",
+    "ENDING_FLAG",
+    "EXIT_137",
+    "KERNEL_PANIC",
+    "MELTDOWN_ENDING",
+    "SHARED_ERRORS",
+    "SUCCESS_ENDING",
+    "BreakableScreen",
+    "DeathScreen",
+    "Meltdown",
+    "MeltdownScreen",
+    "capture_frame",
+    "check_ending",
+    "decay",
+    "is_doomed",
+    "play",
+    "run_meltdown",
+]

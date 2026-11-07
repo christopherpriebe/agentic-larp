@@ -8,8 +8,9 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 APE = (
@@ -33,6 +34,7 @@ FAIL_ERRORS = (
     "OpenSea: collection delisted",
     "ipfs: 1 peer (your laptop, now offline)",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. you still own the right-click.")
 HYPE = (
     "💬 discord: gm",
     "💬 discord: gm gm",
@@ -61,7 +63,8 @@ class NftScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.clock = 0.0
         self.progress = 0.0
         self.floor = _START_FLOOR
@@ -107,11 +110,7 @@ class NftScreen:
             ``False`` once a failing mint has finished collapsing.
         """
         self.clock += dt
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_line = self.clock
         if self.broken_at is not None:
             self.floor *= max(0.0, 1 - dt * 1.5)
@@ -172,7 +171,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         NftScreen(context),
-        FAIL_ERRORS,
-        "🖼 minted out. floor price 4.20 ETH. you own a jpeg now.",
-        "it's a jpeg of a monkey. it was always a jpeg of a monkey.",
+        MELTDOWN,
+        success="🖼 minted out. floor price 4.20 ETH. you own a jpeg now.",
+        failure="it's a jpeg of a monkey. it was always a jpeg of a monkey.",
     )

@@ -8,8 +8,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 POST_LINES = (
@@ -40,6 +41,7 @@ FAIL_ERRORS = (
     "WARN: flagged as AI-generated",
     "ERR: comment pod unreachable",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. i am humbled. and also hiring.")
 _FAIL_LINES = (
     "⚠ flagged as AI-generated",
     "authenticity_score = -12",
@@ -70,7 +72,8 @@ class ThoughtleaderScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.clock = 0.0
         self.push = 0.0
         self.impressions = float(_START_IMPRESSIONS)
@@ -131,11 +134,7 @@ class ThoughtleaderScreen:
         """
         self.clock += dt
         self.push = max(0.0, self.push - dt * _PUSH_DECAY)
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_line = self.clock
         if self.broken_at is not None:
             if self.clock >= self.next_line and self.fail_lines:
@@ -211,7 +210,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         ThoughtleaderScreen(context),
-        FAIL_ERRORS,
-        "📣 posted. 2.1M impressions. now go thank your barista. then post about it.",
-        _FAIL_DEATH_LINE,
+        MELTDOWN,
+        success="📣 posted. 2.1M impressions. now go thank your barista. then post about it.",
+        failure=_FAIL_DEATH_LINE,
     )

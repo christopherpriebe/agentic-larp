@@ -1,24 +1,39 @@
+import math
 import random
 import re
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from rich.console import Console
 from rich.text import Text
 
-from agentic_larp.apps import (
+import agentic_larp
+import agentic_larp.apps
+from agentic_larp import LarpError
+from agentic_larp.apps import AppContext, app_registry
+from agentic_larp.meltdown import (
+    BLUE_SCREEN,
+    DEATHS,
+    ENDING_FLAG,
+    EXIT_137,
+    KERNEL_PANIC,
+    MELTDOWN_ENDING,
     SHARED_ERRORS,
-    AppContext,
-    Outcome,
-    app_registry,
+    SUCCESS_ENDING,
+    DeathScreen,
+    Meltdown,
+    MeltdownScreen,
     capture_frame,
     decay,
+    is_doomed,
     run_meltdown,
 )
 from support import FakeClock, ScriptedKeys, output
 
-# Every fake death screen shows exactly one of these.
-DEATHS = ("exited with code 137", "Kernel panic", "Your PC ran into a problem")
+# Every shared fake death screen shows exactly one of these.
+DEATH_MARKERS = ("exited with code 137", "Kernel panic", "Your PC ran into a problem")
+DEFAULT_REVEAL = Meltdown().reveal
 SUCCESS_GOODBYES = {
     "call": "says goodnight",
     "hacker": "connection closed",
@@ -45,8 +60,12 @@ SIGNATURES = {
 FRAME = ["hello world", "  agents  ", "", "ship it"]
 
 
+def untyped(value: object) -> Any:  # noqa: ANN401 - hands a wrongly typed value to runtime validation
+    return value
+
+
 def has_death(text: str) -> bool:
-    return any(death in text for death in DEATHS)
+    return any(death in text for death in DEATH_MARKERS)
 
 
 def changed(before: list[str], after: list[str]) -> set[tuple[int, int]]:
@@ -58,13 +77,145 @@ def changed(before: list[str], after: list[str]) -> set[tuple[int, int]]:
     }
 
 
-def test_outcome_values() -> None:
-    assert Outcome("success") is Outcome.SUCCESS
-    assert Outcome("fail") is Outcome.FAIL
+def test_outcome_is_gone() -> None:
+    assert not hasattr(agentic_larp.apps, "Outcome")
+    assert not hasattr(agentic_larp, "Outcome")
+    assert not hasattr(agentic_larp.apps, "run_meltdown")
 
 
-def test_app_context_defaults_to_success(console: Console) -> None:
-    assert AppContext(console=console, task="t").outcome is Outcome.SUCCESS
+def test_app_context_has_flags_and_its_own_rng(console: Console) -> None:
+    first = AppContext(console=console, task="t")
+    second = AppContext(console=console, task="t")
+    assert dict(first.flags) == {}
+    assert isinstance(first.rng, random.Random)
+    assert first.rng is not second.rng
+
+
+def doom(ending: str | None, console: Console) -> bool:
+    flags = {} if ending is None else {ENDING_FLAG: ending}
+    return is_doomed(AppContext(console=console, task="t", flags=flags))
+
+
+def test_only_the_ending_flag_dooms_an_app(console: Console) -> None:
+    assert ENDING_FLAG == "ending"
+    assert doom("meltdown", console)
+    assert not doom("success", console)
+    assert not doom(None, console)
+
+
+def test_doom_never_depends_on_chance(console: Console) -> None:
+    for seed in range(200):
+        context = AppContext(console=console, task="t", rng=random.Random(seed))
+        assert not is_doomed(context)
+
+
+@pytest.mark.parametrize("ending", ["meltdwn", "", "MELTDOWN?", "fail"])
+def test_an_unknown_ending_is_an_error_naming_it(ending: str, console: Console) -> None:
+    with pytest.raises(LarpError, match=re.escape(repr(ending))):
+        doom(ending, console)
+
+
+def test_death_screens_are_public_data() -> None:
+    assert DEATHS == (EXIT_137, KERNEL_PANIC, BLUE_SCREEN)
+    assert all(isinstance(death, DeathScreen) and death.lines for death in DEATHS)
+    assert len(SHARED_ERRORS) >= 10
+
+
+@pytest.mark.parametrize(
+    ("make", "message"),
+    [
+        pytest.param(lambda: Meltdown(decay_seconds=-1.0), "decay", id="decay"),
+        pytest.param(
+            lambda: Meltdown(cascade_seconds=math.nan), "cascade", id="cascade"
+        ),
+        pytest.param(lambda: Meltdown(death_seconds=math.inf), "death", id="death"),
+        pytest.param(lambda: Meltdown(shared=-1), "shared", id="shared-negative"),
+        pytest.param(lambda: Meltdown(shared=10_000), "shared", id="shared-too-many"),
+        pytest.param(
+            lambda: Meltdown(shared=untyped(2.5)), "shared", id="shared-float"
+        ),
+        pytest.param(lambda: Meltdown(shared=True), "shared", id="shared-bool"),
+        pytest.param(lambda: Meltdown(deaths=()), "death screen", id="deaths-empty"),
+        pytest.param(
+            lambda: Meltdown(deaths=untyped(("oops",))),
+            "death screen",
+            id="deaths-type",
+        ),
+    ],
+)
+def test_meltdown_rejects_bad_settings(
+    make: Callable[[], Meltdown], message: str
+) -> None:
+    with pytest.raises(LarpError, match=message):
+        make()
+
+
+def test_the_ending_values_are_public() -> None:
+    assert (MELTDOWN_ENDING, SUCCESS_ENDING) == ("meltdown", "success")
+
+
+def test_the_reveal_prints_literally(console: Console, clock: FakeClock) -> None:
+    context = AppContext(console=console, task="t", fps=10)
+    run_meltdown(context, Text("frame"), Meltdown(reveal="jk :fire: [bold]x[/]"))
+    assert output(console).rstrip().endswith("jk :fire: [bold]x[/]")
+    assert clock.now > 0
+
+
+def plain_text(screen: MeltdownScreen) -> str:
+    console = Console(width=100, height=20, force_terminal=True, color_system=None)
+    with console.capture() as capture:
+        console.print(screen.render(), height=20)
+    return capture.get()
+
+
+def play_screen(screen: MeltdownScreen, seconds: float, dt: float = 0.05) -> list[str]:
+    frames = []
+    for _ in range(int(seconds / dt)):
+        if not screen.tick(dt):
+            break
+        frames.append(plain_text(screen))
+    return frames
+
+
+CUSTOM = Meltdown(
+    errors=("CARD DECLINED BY THE UNIVERSE",),
+    shared=0,
+    deaths=(DeathScreen(("PAYMENT FAILED", "please try again never"), "white on red"),),
+    reveal="jk. the card was fake too.",
+    note="(no cards were harmed)",
+    decay_seconds=1.0,
+    cascade_seconds=1.0,
+    death_seconds=1.0,
+)
+
+
+def test_a_custom_meltdown_plays_its_own_errors_death_and_reveal() -> None:
+    screen = MeltdownScreen(FRAME, CUSTOM, random.Random(2))
+    text = "\n".join(play_screen(screen, 10.0))
+    assert "CARD DECLINED BY THE UNIVERSE" in text
+    assert not any(error in text for error in SHARED_ERRORS)
+    assert "PAYMENT FAILED" in text
+    assert not has_death(text)
+    assert "jk. the card was fake too." in text
+    assert "(no cards were harmed)" in text
+
+
+def test_meltdown_length_is_the_sum_of_its_phases() -> None:
+    screen = MeltdownScreen(FRAME, CUSTOM, random.Random(2))
+    elapsed = 0.0
+    while screen.tick(0.05):
+        elapsed += 0.05
+    # decay + cascade + death, then the reveal holds for one more second
+    assert 3.9 <= elapsed <= 4.1
+
+
+def test_escape_jumps_to_the_reveal_and_a_second_escape_leaves() -> None:
+    screen = MeltdownScreen(FRAME, CUSTOM, random.Random(2))
+    screen.tick(0.1)
+    assert screen.on_key("esc")
+    screen.tick(0.05)
+    assert "jk. the card was fake too." in plain_text(screen)
+    assert not screen.on_key("esc")
 
 
 def test_decay_of_zero_changes_nothing() -> None:
@@ -118,12 +269,14 @@ def test_meltdown_decays_cascades_dies_and_returns(
     console: Console, clock: FakeClock
 ) -> None:
     context = AppContext(console=console, task="t", fps=10)
-    run_meltdown(context, Text("a perfectly fine app"), ["APP-SPECIFIC-ERROR"])
+    run_meltdown(
+        context, Text("a perfectly fine app"), Meltdown(errors=("APP-SPECIFIC-ERROR",))
+    )
     text = output(console)
     assert "APP-SPECIFIC-ERROR" in text
     assert any(error in text for error in SHARED_ERRORS)
     assert has_death(text)
-    assert "jk" in text
+    assert text.rstrip().endswith(DEFAULT_REVEAL)
     assert 3.0 < clock.now < 15.0
 
 
@@ -135,14 +288,18 @@ def test_escape_skips_the_meltdown(
     context = AppContext(
         console=console, task="t", fps=10, keys=make_keys((0.5, "esc"))
     )
-    run_meltdown(context, Text("frame"), ["E1"])
+    run_meltdown(context, Text("frame"), Meltdown(errors=("E1",)))
     assert clock.now < 3.0
+
+
+MELTDOWN = "meltdown"
+SUCCESS = "success"
 
 
 def run_app(
     name: str,
     console: Console,
-    outcome: Outcome,
+    ending: str,
     keys: ScriptedKeys | None = None,
     auto: float | None = None,
 ) -> str:
@@ -152,7 +309,7 @@ def run_app(
         auto=auto,
         fps=10,
         keys=keys,
-        outcome=outcome,
+        flags={ENDING_FLAG: ending},
     )
     app_registry()[name](context)
     return output(console)
@@ -166,11 +323,44 @@ def test_every_app_fails_on_its_own_when_told_to(
     make_keys: Callable[..., ScriptedKeys],
 ) -> None:
     keys = make_keys((0.5, "x"))  # answers the call; harmless elsewhere
-    text = run_app(name, console, Outcome.FAIL, keys)
+    text = run_app(name, console, MELTDOWN, keys)
     assert has_death(text)
     assert "jk" in text
+    assert DEFAULT_REVEAL not in text
     assert SUCCESS_GOODBYES[name] not in text
     assert clock.now < 60.0
+
+
+def test_every_app_has_its_own_reveal_line(
+    console: Console,
+    clock: FakeClock,
+    make_keys: Callable[..., ScriptedKeys],
+) -> None:
+    reveals: dict[str, set[str]] = {}
+    for name in sorted(SUCCESS_GOODBYES):
+        start = len(output(console))
+        run_app(name, console, MELTDOWN, make_keys((clock.now + 0.5, "x")))
+        reveals[name] = {
+            line.strip()
+            for line in output(console)[start:].splitlines()
+            if "jk" in line
+        }
+    for name, lines in reveals.items():
+        others = set().union(*(other for key, other in reveals.items() if key != name))
+        assert lines - others, name
+
+
+@pytest.mark.parametrize("name", sorted(SUCCESS_GOODBYES))
+def test_an_explicit_success_ending_never_melts_down(
+    name: str,
+    console: Console,
+    clock: FakeClock,
+    make_keys: Callable[..., ScriptedKeys],
+) -> None:
+    text = run_app(name, console, SUCCESS, make_keys((0.5, "x")), auto=12.0)
+    assert not has_death(text)
+    assert SUCCESS_GOODBYES[name] in text
+    assert clock.now <= 13.0
 
 
 @pytest.mark.parametrize("name", sorted(SUCCESS_GOODBYES))
@@ -207,7 +397,7 @@ HACKER_STAGES = (
 def test_hacker_plays_its_stages_in_order_and_finishes_itself(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("hacker", console, Outcome.SUCCESS)
+    text = run_app("hacker", console, SUCCESS)
     positions = [text.find(stage) for stage in HACKER_STAGES]
     assert all(p >= 0 for p in positions)
     assert positions == sorted(positions)
@@ -218,7 +408,7 @@ def test_hacker_plays_its_stages_in_order_and_finishes_itself(
 def test_hacker_no_longer_types_python_source(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("hacker", console, Outcome.SUCCESS)
+    text = run_app("hacker", console, SUCCESS)
     assert "def " not in text
     assert "import " not in text
     assert clock.now > 0
@@ -229,7 +419,7 @@ def test_mashing_keys_makes_the_hack_go_faster(
     clock: FakeClock,
     make_keys: Callable[..., ScriptedKeys],
 ) -> None:
-    run_app("hacker", console, Outcome.SUCCESS)
+    run_app("hacker", console, SUCCESS)
     calm = clock.now
     clock.now = 0.0
     mash = make_keys(*((i * 0.05, "k") for i in range(2000)))
@@ -242,14 +432,14 @@ def test_mashing_keys_makes_the_hack_go_faster(
             force_terminal=True,
             color_system=None,
         ),
-        Outcome.SUCCESS,
+        SUCCESS,
         mash,
     )
     assert clock.now < calm * 0.6
 
 
 def test_failed_hack_gets_traced(console: Console, clock: FakeClock) -> None:
-    text = run_app("hacker", console, Outcome.FAIL)
+    text = run_app("hacker", console, MELTDOWN)
     assert "TRACE COMPLETE" in text
     assert "ACCESS GRANTED" not in text.split("TRACE COMPLETE")[-1]
     assert has_death(text)
@@ -259,7 +449,7 @@ def test_failed_hack_gets_traced(console: Console, clock: FakeClock) -> None:
 def test_failing_call_answers_itself_when_nobody_picks_up(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("call", console, Outcome.FAIL)
+    text = run_app("call", console, MELTDOWN)
     assert has_death(text)
     assert "says goodnight" not in text
     assert clock.now < 60.0
@@ -288,7 +478,7 @@ def test_escaping_before_the_break_skips_the_meltdown(
     clock: FakeClock,
     make_keys: Callable[..., ScriptedKeys],
 ) -> None:
-    text = run_app(name, console, Outcome.FAIL, make_keys(*schedule))
+    text = run_app(name, console, MELTDOWN, make_keys(*schedule))
     assert not has_death(text)
     assert "jk" not in text
     assert clock.now < 10.0
@@ -297,7 +487,7 @@ def test_escaping_before_the_break_skips_the_meltdown(
 def test_failing_hacker_never_promises_access(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("hacker", console, Outcome.FAIL)
+    text = run_app("hacker", console, MELTDOWN)
     assert "access granted" not in text.lower().split("trace complete")[0]
     assert clock.now > 0
 
@@ -318,7 +508,7 @@ def test_grift_apps_show_their_hustle(
 def test_grift_apps_fail_in_their_own_way(
     name: str, console: Console, clock: FakeClock
 ) -> None:
-    text = run_app(name, console, Outcome.FAIL)
+    text = run_app(name, console, MELTDOWN)
     assert SIGNATURES[name][1].lower() in text.lower()
     assert has_death(text)
     assert clock.now < 60.0
@@ -327,7 +517,7 @@ def test_grift_apps_fail_in_their_own_way(
 def test_failing_hacker_footer_tells_the_truth(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("hacker", console, Outcome.FAIL)
+    text = run_app("hacker", console, MELTDOWN)
     assert "tab: access denied" in text
     assert "tab: nothing" not in text
     assert clock.now > 0
@@ -344,7 +534,7 @@ def test_hanging_up_ends_the_call_promptly(
         (1.0, "enter"),
         (1.1, "esc"),
     )
-    text = run_app("call", console, Outcome.SUCCESS, keys)
+    text = run_app("call", console, SUCCESS, keys)
     assert "says goodnight" in text
     # her reply to "i love you" was queued, then dropped by the hang-up
     assert "i love you too" not in text
@@ -381,7 +571,7 @@ def test_memecoin_price_stays_finite_however_long_it_runs(
 def test_wrapper_bill_stays_readable_when_it_explodes(
     console: Console, clock: FakeClock
 ) -> None:
-    text = run_app("wrapper", console, Outcome.FAIL)
+    text = run_app("wrapper", console, MELTDOWN)
     assert not re.search(r"\$[\d,]{16,}", text)
     assert "rate limit" in text.lower()
     assert clock.now < 60.0

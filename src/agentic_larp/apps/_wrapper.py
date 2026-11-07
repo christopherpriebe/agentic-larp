@@ -9,8 +9,9 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, Outcome
-from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, play, push_feed
+from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
+from agentic_larp.meltdown import Meltdown, is_doomed, play
 
 BORDER = "#3a4a5a"
 PITCH = "we're the Stripe of prompts"
@@ -28,6 +29,7 @@ FAIL_ERRORS = (
     "API key revoked",
     "invoice: $48,000 (net 0)",
 )
+MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. the API bill was in euros.")
 _MRR_PER_SECOND = 55.0
 _BILL_PER_SECOND = 48.0
 _START_MRR = 2400.0
@@ -53,7 +55,8 @@ class WrapperScreen:
 
     def __init__(self, context: AppContext, rng: random.Random | None = None) -> None:
         self.context = context
-        self.rng = rng or random.Random()
+        self.doomed = is_doomed(context)
+        self.rng = rng or context.rng
         self.clock = 0.0
         self.push = 0.0
         self.mrr = _START_MRR
@@ -93,11 +96,7 @@ class WrapperScreen:
         """
         self.clock += dt
         self.push = max(0.0, self.push - dt * _PUSH_DECAY)
-        if (
-            self.context.outcome is Outcome.FAIL
-            and self.broken_at is None
-            and self.clock >= BREAK_AT
-        ):
+        if self.doomed and self.broken_at is None and self.clock >= BREAK_AT:
             self.broken_at = self.next_line = self.clock
         if self.broken_at is not None:
             self.bill = min(_MAX_BILL, self.bill * (1 + dt * _BILL_SPIKE))
@@ -168,7 +167,7 @@ def run(context: AppContext) -> None:
     play(
         context,
         WrapperScreen(context),
-        FAIL_ERRORS,
-        "💸 MRR passed the API bill. barely. raise a seed round immediately.",
-        "the model provider released your app as a free feature.",
+        MELTDOWN,
+        success="💸 MRR passed the API bill. barely. raise a seed round immediately.",
+        failure="the model provider released your app as a free feature.",
     )
