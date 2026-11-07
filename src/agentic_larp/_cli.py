@@ -4,7 +4,7 @@ import argparse
 import math
 import random
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from importlib.metadata import version
 from pathlib import Path
 from typing import cast
@@ -22,6 +22,7 @@ from agentic_larp._packs import (
     discover_scenarios,
     load_scenario,
 )
+from agentic_larp._policies import ChoicePolicy, policy_registry
 from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import Sim, SwarmSettings
 from agentic_larp._theater import (
@@ -61,6 +62,28 @@ def _parse_agent_count(text: str) -> int:
         message = f"must be a whole number of at least 1, not {text!r}"
         raise argparse.ArgumentTypeError(message)
     return value
+
+
+def _policy_warner(console: Console) -> Callable[[str, Exception], None]:
+    def warn(name: str, error: Exception) -> None:
+        _print_unwrapped(console, f"[yellow]warning: {escape(f'{name}: {error}')}[/]")
+
+    return warn
+
+
+def _check_policy(
+    parser: argparse.ArgumentParser,
+    registry: Mapping[str, Callable[[], ChoicePolicy]],
+    name: str,
+) -> Callable[[], ChoicePolicy]:
+    factory = registry.get(name)
+    if factory is None:
+        parser.error(
+            f"argument --policy: unknown policy {name!r}; try: {', '.join(registry)}"
+        )
+    if not callable(factory) or not callable(getattr(factory(), "choose", None)):
+        parser.error(f"argument --policy: {name!r} is not a choice policy")
+    return factory
 
 
 def _parse_grid(text: str) -> Grid:
@@ -132,6 +155,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--play", metavar="APP", help="skip the agents and launch an app"
+    )
+    parser.add_argument(
+        "--policy",
+        default="random",
+        metavar="NAME",
+        help="how repeated lines are chosen (see --list; default random)",
     )
     parser.add_argument(
         "--outcome",
@@ -215,9 +244,11 @@ def main(argv: list[str] | None = None) -> int:
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
+    registry = policy_registry(on_error=_policy_warner(console))
     if args.list:
-        _print_list(console, apps, packs)
+        _print_list(console, apps, packs, registry)
         return 0
+    args.policy_factory = _check_policy(parser, registry, args.policy)
     auto = args.auto
     if auto is None and not is_interactive():
         auto = _NON_INTERACTIVE_AUTO
@@ -270,6 +301,7 @@ def _run_show(
         activity=args.speed,
         lead_model=args.lead_model,
         intern_model=args.intern_model,
+        policy=args.policy_factory,
     )
     try:
         return _play_show(args, console, apps, auto, Sim(scenarios, settings, rng))
@@ -326,7 +358,10 @@ def _collect_packs(files: list[Path], console: Console) -> dict[str, Scenario]:
 
 
 def _print_list(
-    console: Console, apps: dict[str, App], packs: Mapping[str, Scenario]
+    console: Console,
+    apps: dict[str, App],
+    packs: Mapping[str, Scenario],
+    policies: Mapping[str, Callable[[], ChoicePolicy]],
 ) -> None:
     console.print("[bold]scenarios[/]  (picked by keywords in your task, or -s)")
     for key, scenario in packs.items():
@@ -335,6 +370,9 @@ def _print_list(
             f"[dim]→ launches {escape(scenario.app)}[/]"
         )
     console.print("  [cyan]generic    [/] anything else you type")
+    console.print("\n[bold]policies[/]  (--policy NAME)")
+    for name in policies:
+        console.print(f"  [cyan]{escape(name):<11}[/]")
     console.print("\n[bold]apps[/]  (--app NAME or --play NAME)")
     for name in apps:
         console.print(f"  [cyan]{name:<11}[/] {DESCRIPTIONS.get(name, 'plugin')}")

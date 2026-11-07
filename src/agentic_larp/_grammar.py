@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from agentic_larp._errors import GrammarError
 from agentic_larp._log import LogLine
+from agentic_larp._policies import ChoicePolicy, RandomPolicy
 
 REQUIRED_SYMBOLS = ("action", "quip", "final", "intern_task")
 BOUND_SYMBOLS = ("file", "area", "agent", "intern", "n")
@@ -63,6 +64,14 @@ def _parse_alternatives(name: str, value: object) -> tuple[tuple[str, float], ..
         else:
             raise GrammarError(must_be_text)
     return tuple(alternatives)
+
+
+@dataclass(frozen=True, slots=True)
+class _Expansion:
+    rng: random.Random
+    bindings: Mapping[str, str]
+    max_depth: int
+    policy: ChoicePolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +161,7 @@ class Grammar:
         bindings: Mapping[str, str] | None = None,
         *,
         max_depth: int = _DEFAULT_DEPTH,
+        policy: ChoicePolicy | None = None,
     ) -> str:
         """Generate text from a symbol.
 
@@ -164,20 +174,17 @@ class Grammar:
             bindings: Values that win over rules for references.
             max_depth: The deepest allowed chain of rules expanding other
                 rules.
+            policy: Chooses among alternatives for every rule in the
+                expansion; defaults to a fresh :class:`RandomPolicy`.
 
         Returns:
             The expanded text.
         """
-        return self._expand(symbol, rng, bindings or {}, max_depth, 0)
+        state = _Expansion(rng, bindings or {}, max_depth, policy or RandomPolicy())
+        return self._expand(symbol, state, 0)
 
-    def _expand(
-        self,
-        symbol: str,
-        rng: random.Random,
-        bindings: Mapping[str, str],
-        max_depth: int,
-        depth: int,
-    ) -> str:
+    def _expand(self, symbol: str, state: "_Expansion", depth: int) -> str:
+        max_depth, bindings = state.max_depth, state.bindings
         if depth > max_depth:
             message = f"rules nest too deep (over {max_depth}) at {symbol!r}"
             raise GrammarError(message)
@@ -185,16 +192,21 @@ class Grammar:
         if alternatives is None:
             message = f"unknown symbol {symbol!r}"
             raise GrammarError(message)
-        texts = [text for text, _ in alternatives]
-        weights = [weight for _, weight in alternatives]
-        text = rng.choices(texts, weights)[0]
+        index = state.policy.choose(symbol, alternatives, state.rng)
+        if not isinstance(index, int) or not 0 <= index < len(alternatives):
+            message = (
+                f"policy returned {index!r}, which is not one of the "
+                f"{len(alternatives)} alternatives of {symbol!r}"
+            )
+            raise GrammarError(message)
+        text = alternatives[index][0]
 
         def resolve(match: re.Match[str]) -> str:
             name, *modifiers = match.group(1).split(".")
             if name in bindings:
                 value = bindings[name]
             else:
-                value = self._expand(name, rng, bindings, max_depth, depth + 1)
+                value = self._expand(name, state, depth + 1)
             for modifier in modifiers:
                 if modifier not in _MODIFIERS:
                     message = f"unknown modifier {modifier!r}"
