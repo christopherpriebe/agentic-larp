@@ -1,5 +1,6 @@
 """The fake agent simulation. Nothing here does any work. That is the point."""
 
+import math
 import random
 from collections import deque
 from collections.abc import Sequence
@@ -38,6 +39,12 @@ _USER_REPLY_CHANCE = 0.5
 _MAX_ENERGY = 25.0
 _INTERNS_DONE_AT_START = 0.4
 _TOKENS_PER_DOLLAR = 31_746
+_AGENT_TOKENS_PER_SECOND = 2_000
+_INTERN_TOKENS_PER_SECOND = 800
+_INTERN_START_TOKENS = 7_400
+_SECONDS_PER_INTERN_CALL = 4
+_INTERNS_PER_CALLER = 4
+_TOKEN_EPOCH = 300
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,14 +54,14 @@ class SwarmSettings:
     Attributes:
         agents: Lead agents, each with a panel.
         interns: Tiny swarm agents in the bottom strip.
-        timescale: Fake seconds that pass per real second.
+        activity: How fast the agents work; never affects the clock.
         lead_model: Name prefix for lead agents.
         intern_model: Name prefix for interns.
     """
 
     agents: int = 8
     interns: int = 16
-    timescale: float = 22.0
+    activity: float = 1.0
     lead_model: str = "maestro"
     intern_model: str = "intern"
 
@@ -68,7 +75,7 @@ class Agent:
         scenario_key: Key of the pack that supplies its activity.
         area: What it is "working" on, such as ``render``.
         files: Files it touches.
-        spawn_offset: Fake seconds after the run started that it joined.
+        spawn_offset: Seconds of run time at which that it joined.
         log: Lines already shown in its panel.
         queue: Lines waiting to be streamed into the log.
         tokens: Tokens it has pretended to use.
@@ -76,7 +83,7 @@ class Agent:
         verb: Its current spinner verb.
         is_done: Whether it has finished.
         finish_at: Real time it wraps up after the first "ship it".
-        frozen_elapsed: Fake elapsed time, fixed once it finishes.
+        frozen_elapsed: Run time it worked for, fixed once it finishes.
         last_active: Sim time a line last entered its log.
     """
 
@@ -87,7 +94,7 @@ class Agent:
     spawn_offset: float = 0.0
     log: deque[LogLine] = field(default_factory=lambda: deque(maxlen=120))
     queue: deque[LogLine] = field(default_factory=deque)
-    tokens: int = 0
+    tokens: float = 0.0
     calls: int = 0
     verb: str = "Frothing"
     is_done: bool = False
@@ -105,7 +112,7 @@ class Intern:
         task: What its tile says it is doing.
         is_done: Whether its tile shows a check mark.
         until: Real time its state next flips.
-        frozen_elapsed: Fake elapsed time shown while done.
+        frozen_elapsed: Run time shown while done.
     """
 
     name: str
@@ -135,17 +142,23 @@ class Sim:
             message = "a simulation needs at least one pack"
             raise LarpError(message)
         settings = settings or SwarmSettings()
+        if not math.isfinite(settings.activity) or settings.activity <= 0:
+            message = "activity must be a finite number above 0"
+            raise LarpError(message)
+        if settings.agents < 1:
+            message = "a swarm needs at least one agent"
+            raise LarpError(message)
         self.scenarios = list(scenarios)
         self.task = task or self.scenarios[0].task
         self._by_key = {scenario.key: scenario for scenario in self.scenarios}
         self._grammars: dict[tuple[str, str], Grammar] = {}
-        self.timescale = settings.timescale
+        self.activity = settings.activity
         self.lead_model = settings.lead_model
         self.intern_model = settings.intern_model
         self.rng = rng or random.Random()
         self.orchestrator = self.rng.choice(ORCHESTRATORS)
         self.now = 0.0
-        self.fake = self.rng.uniform(4, 9) * 60  # pretend we've been at it a while
+        self._run_time = self.rng.uniform(4, 9) * 60  # pretend we've been at it a while
         self.energy = 0.0
         self.agents: list[Agent] = []
         self.interns: list[Intern] = []
@@ -158,8 +171,16 @@ class Sim:
             self._assign_intern(intern)
             if self.rng.random() < _INTERNS_DONE_AT_START:
                 intern.is_done = True
-                intern.frozen_elapsed = self.fake - self.rng.uniform(0, 120)
+                intern.frozen_elapsed = self._run_time - self.rng.uniform(0, 120)
             self.interns.append(intern)
+        self._intern_tokens = float(
+            _INTERN_START_TOKENS
+            * len(self.interns)
+            * int(1 + self._run_time / _TOKEN_EPOCH)
+        )
+        self._intern_calls = float(
+            int(self._run_time / _SECONDS_PER_INTERN_CALL * self._intern_callers)
+        )
         for agent in self.agents:
             for _ in range(self.rng.randint(3, 6)):
                 self._emit(agent)
@@ -168,16 +189,23 @@ class Sim:
 
     # ---- totals --------------------------------------------------------------
     @property
+    def run_time(self) -> float:
+        """Return the real seconds the orchestration has been running."""
+        return self._run_time
+
+    @property
+    def _intern_callers(self) -> float:
+        return len(self.interns) / _INTERNS_PER_CALLER
+
+    @property
     def total_tokens(self) -> int:
         """Return every token the swarm has pretended to use."""
-        intern_tokens = 7_400 * len(self.interns) * int(1 + self.fake / 300)
-        return sum(agent.tokens for agent in self.agents) + intern_tokens
+        return round(sum(agent.tokens for agent in self.agents) + self._intern_tokens)
 
     @property
     def total_calls(self) -> int:
         """Return every tool call the swarm has pretended to make."""
-        intern_calls = int(self.fake / 4) * max(1, len(self.interns) // 4)
-        return sum(agent.calls for agent in self.agents) + intern_calls
+        return sum(agent.calls for agent in self.agents) + int(self._intern_calls)
 
     @property
     def cost(self) -> float:
@@ -195,7 +223,7 @@ class Sim:
         return all(agent.is_done for agent in self.agents)
 
     def elapsed(self, agent: Agent) -> float:
-        """Return the fake seconds an agent has been working.
+        """Return the seconds an agent has been working.
 
         Args:
             agent: One of :attr:`agents`.
@@ -205,7 +233,7 @@ class Sim:
         """
         if agent.frozen_elapsed is not None:
             return agent.frozen_elapsed
-        return max(0.0, self.fake - agent.spawn_offset)
+        return max(0.0, self._run_time - agent.spawn_offset)
 
     def spawn_agent(self, *, quiet: bool = False) -> Agent:
         """Add a lead agent, taking the next area in the scenario.
@@ -227,11 +255,11 @@ class Sim:
             area=area,
             files=files,
             scenario_key=scenario.key,
-            spawn_offset=self.rng.uniform(0, 150) if quiet else self.fake,
+            spawn_offset=self.rng.uniform(0, 150) if quiet else self._run_time,
             verb=self.rng.choice(SPINNER_VERBS),
         )
         if quiet:
-            agent.tokens = self.rng.randint(30_000, 90_000)
+            agent.tokens = float(self.rng.randint(30_000, 90_000))
             agent.calls = self.rng.randint(20, 60)
         else:
             self.reports.append((self.orchestrator, f"spawning {agent.name} → {area}"))
@@ -276,22 +304,30 @@ class Sim:
         """
         rng = self.rng
         self.now += dt
-        self.fake += dt * self.timescale * (1 + self.energy * 0.15)
-        boost = 1 + self.energy
+        if self.is_all_done:
+            return
+        self._run_time += dt
+        boost = (1 + self.energy) * self.activity
         self.energy = max(0.0, self.energy - dt * (2 + self.energy * 0.6))
         for agent in self.agents:
             if not agent.is_done:
                 self._tick_agent(agent, dt, boost)
+        self._intern_tokens += (
+            len(self.interns) * _INTERN_TOKENS_PER_SECOND * dt * boost
+        )
+        self._intern_calls += (
+            self._intern_callers * dt * boost / _SECONDS_PER_INTERN_CALL
+        )
         is_shipping = any(agent.finish_at is not None for agent in self.agents)
         for intern in self.interns:
             if is_shipping:
                 if not intern.is_done:
-                    intern.is_done, intern.frozen_elapsed = True, self.fake
+                    intern.is_done, intern.frozen_elapsed = True, self._run_time
             elif self.now >= intern.until:
                 if intern.is_done:
                     self._assign_intern(intern)
                 else:
-                    intern.is_done, intern.frozen_elapsed = True, self.fake
+                    intern.is_done, intern.frozen_elapsed = True, self._run_time
                     intern.until = self.now + rng.uniform(1.5, 6) / boost
             elif not intern.is_done and rng.random() < dt * 0.6 * boost:
                 self._assign_intern(intern, keep_time=True)
@@ -299,11 +335,11 @@ class Sim:
     def _tick_agent(self, agent: Agent, dt: float, boost: float) -> None:
         rng = self.rng
         hurry = 1 if agent.finish_at is None else 4
+        agent.tokens += _AGENT_TOKENS_PER_SECOND * dt * boost
         if agent.queue and rng.random() < dt * 9 * boost * hurry:
             agent.log.append(agent.queue.popleft())
             agent.last_active = self.now
             agent.calls += 1
-            agent.tokens += rng.randint(300, 4_000)
         elif not agent.queue:
             if agent.finish_at is not None and self.now >= agent.finish_at:
                 self._finish(agent)

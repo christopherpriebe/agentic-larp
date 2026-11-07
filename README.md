@@ -58,17 +58,21 @@ While it runs:
 
 | You do | It does |
 | --- | --- |
-| mash any keys | agents get frantic (hacker typer, but for orchestration) |
 | type `ship it` ⏎ | every agent wraps up and reports done |
 | type `ship it` again (or ⏎) | `git push --force`, then the payoff app launches |
 | type anything else ⏎ | the orchestrator "routes" it; the agents are on it |
-| type `spawn` ⏎ | one more agent joins |
+| type `spawn` ⏎ | one more agent joins (only while the agents are still running) |
 | esc | dismiss the agents |
 
+The prompt at the bottom is you messaging the orchestrator, the lead agent
+named in the header. The clock in the header always runs in real time, and it
+stops once every agent is done.
+
 Other options: `-n` sets the number of lead agents (default: whatever fits),
-`-i` the number of interns (0 hides them), and `--speed` how fast everything
-moves. Want different names on the panels? `--lead-model` and
-`--intern-model` set them, for example `--lead-model fable --intern-model sonnet`.
+`-i` the number of interns (0 hides them), and `--speed` how fast the agents
+work (the clock, `--auto`, and every other timing are real seconds). Want
+different names on the panels? `--lead-model` and `--intern-model` set them,
+for example `--lead-model fable --intern-model sonnet`.
 
 When stdin is not a terminal (piped, in CI), `larp` ships itself after six
 seconds.

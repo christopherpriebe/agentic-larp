@@ -1,6 +1,7 @@
 """The ``larp`` command."""
 
 import argparse
+import math
 import random
 import subprocess
 from collections.abc import Mapping
@@ -32,13 +33,34 @@ from agentic_larp._theater import (
 from agentic_larp.apps import DESCRIPTIONS, App, AppContext, app_registry
 
 _NON_INTERACTIVE_AUTO = 6.0
-_BASE_TIMESCALE = 22.0
 _MAX_AGENTS = 12
 _CHROME_ROWS = 6
 _SWARM_ROWS = 5
 _INTERRUPTED = 130
 _UNKNOWN_APP = 2
 _BAD_PACK = 2
+
+
+def _parse_speed(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value) or value <= 0:
+        message = f"must be a finite number above 0, not {text!r}"
+        raise argparse.ArgumentTypeError(message)
+    return value
+
+
+def _parse_agent_count(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        message = f"must be a whole number of at least 1, not {text!r}"
+        raise argparse.ArgumentTypeError(message)
+    return value
 
 
 def _parse_grid(text: str) -> Grid:
@@ -90,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-n",
         "--agents",
-        type=int,
+        type=_parse_agent_count,
         help="number of lead agents (default: fits your terminal)",
     )
     parser.add_argument(
@@ -119,9 +141,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--speed",
-        type=float,
+        type=_parse_speed,
         default=1.0,
-        help="how fast everything happens (default 1.0)",
+        help=(
+            "how fast the agents work (default 1.0); the clock, --auto and "
+            "every other timing are real seconds"
+        ),
     )
     parser.add_argument("--lead-model", default="maestro", help="name for lead agents")
     parser.add_argument(
@@ -224,7 +249,7 @@ def _run_show(
     settings = SwarmSettings(
         agents=agent_count,
         interns=interns,
-        timescale=_BASE_TIMESCALE * args.speed,
+        activity=args.speed,
         lead_model=args.lead_model,
         intern_model=args.intern_model,
     )
@@ -245,7 +270,7 @@ def _play_show(
     grid = cast("Grid | None", args.grid)
     app = (args.app or sim.scenarios[0].app).lower()
     label = args.then.split()[0] if args.then else app.replace("none", "")
-    show = ShowSettings(launch_label=label, auto=auto, pace=args.speed, grid=grid)
+    show = ShowSettings(launch_label=label, auto=auto, grid=grid)
     if not Theater(sim, console, show).run():
         console.print(
             f"[dim]{len(sim.agents)} agents dismissed. nothing was built. as always.[/]"

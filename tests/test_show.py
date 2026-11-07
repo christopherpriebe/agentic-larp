@@ -75,7 +75,7 @@ def test_screen_shows_every_agent_the_swarm_and_the_prompt(console: Console) -> 
         assert agent.name in text
     assert "intern-01" in text
     assert "orchestrating 6" in text
-    assert "type 'ship it'" in text
+    assert "'ship it' to ship" in text
 
 
 def test_tiny_terminal_hides_the_swarm() -> None:
@@ -167,3 +167,53 @@ def test_pace_speeds_up_the_whole_show(console: Console, clock: FakeClock) -> No
     theater = make_theater(console, ShowSettings(auto=5.0, pace=10.0))
     assert theater.run()
     assert clock.now < 3.0
+
+
+def footer_text(console: Console, theater: Theater) -> str:
+    return screen_text(console, theater).splitlines()[-1]
+
+
+def test_empty_prompt_says_who_you_are_talking_to(console: Console) -> None:
+    theater = make_theater(console)
+    footer = footer_text(console, theater)
+    assert f"Message {theater.sim.orchestrator}" in footer
+    assert "'ship it' to ship" in footer
+    assert "mash" not in screen_text(console, theater)
+    for key in "hi":
+        theater.handle_key(key)
+    assert f"Message {theater.sim.orchestrator}" not in footer_text(console, theater)
+
+
+def test_header_stops_counting_once_everyone_is_done(console: Console) -> None:
+    theater = make_theater(console)
+    type_line(theater, "ship it")
+    advance(theater, 20)
+    assert theater.stage == "ready"
+    header = screen_text(console, theater).splitlines()[0]
+    advance(theater, 10)
+    assert screen_text(console, theater).splitlines()[0] == header
+
+
+def test_spawning_after_ship_it_is_ignored_and_totals_stay_frozen(
+    console: Console,
+) -> None:
+    theater = make_theater(console)
+    type_line(theater, "ship it")
+    type_line(theater, "spawn")  # while wrapping up
+    assert len(theater.sim.agents) == 6
+    advance(theater, 20)
+    assert theater.stage == "ready"
+    sim = theater.sim
+    snapshot = (sim.run_time, sim.total_calls, sim.total_tokens, sim.cost)
+    type_line(theater, "spawn")  # after everyone is done
+    advance(theater, 1)
+    assert len(sim.agents) == 6
+    assert sim.is_all_done
+    assert (sim.run_time, sim.total_calls, sim.total_tokens, sim.cost) == snapshot
+
+
+def test_placeholder_only_shows_while_agents_are_running(console: Console) -> None:
+    theater = make_theater(console)
+    type_line(theater, "ship it")
+    assert theater.stage == "wrapping"
+    assert "Message" not in footer_text(console, theater)
