@@ -1,0 +1,58 @@
+[pack]
+key = "wrapper"
+task = "build a gpt wrapper"
+keywords = [
+  "wrapper", "wrappers", "gpt", "llm", "llms", "chatbot", "chatbots", "ai",
+  "openai", "chatgpt", "copilot",
+]
+app = "wrapper"
+
+[areas]
+prompt = ["system_prompt.txt", "prompt_v7_final_final.txt"]
+api = ["llm_client.ts", "retry_with_more_retries.ts"]
+ui = ["ChatBox.tsx", "Sparkles.tsx", "PoweredByAI.tsx"]
+billing = ["pricing.ts", "usage_meter.ts", "stripe_checkout.ts"]
+landing = ["Hero.tsx", "waitlist.ts", "logos_of_companies_we_met.tsx"]
+moat = ["moat.md", "proprietary_prompt.txt"]
+infra = ["vercel.json", "env.example"]
+growth = ["launch_thread.md", "product_hunt.md"]
+
+[rules]
+word = [
+  "prompt", "tokens", "context", "completion", "temperature", "embedding", "moat", "rag", "latency", "usage", "credits", "copilot", "magic",
+]
+code = [
+  "const #word# = await llm(#word#);",
+  "return llm(prompt);",
+  "export async function #word#(prompt: string) {",
+  "if (!#word#) throw new Error('#word#');",
+  "const MAX_#word.upper# = #n#;",
+  "await sleep(#n#); // retry",
+  "// TODO: add a moat",
+  "system: 'you are a helpful #word#',",
+  "setCredits(credits - #n#);",
+]
+command = [
+  "npm run build",
+  "vercel --prod",
+  "npx tsc --noEmit",
+  "curl -s api.provider.ai/v1/complete",
+  "git commit -am 'improve prompt'",
+]
+quip = [
+  "The moat is the system prompt.",
+  "Added 'think step by step'.",
+  "Sparkles added. Churn down 2%.",
+  "We are the Stripe of prompts.",
+  "Rewrote the prompt. Same output.",
+  "Token usage: yes.",
+  "Pivoted from chatbot to agent.",
+  "Added 'powered by AI' in 3 places.",
+  "Latency: 11s. Called it 'thinking'.",
+]
+final = [
+  "Product is live.",
+  "Waitlist converts at 80% (n=5).",
+  "Demo works on my prompt.",
+  "Seed round: imminent.",
+]

@@ -197,6 +197,10 @@ def test_builtin_packs_keep_their_apps() -> None:
         "startup": "stonks",
         "hacker": "hacker",
         "prod": "deploy",
+        "dropship": "dropship",
+        "memecoin": "memecoin",
+        "wrapper": "wrapper",
+        "nft": "nft",
     }
 
 
@@ -352,3 +356,53 @@ def test_empty_keywords_are_rejected(tmp_path: Path) -> None:
 )
 def test_builtin_keywords_cover_common_inflections(task: str, key: str) -> None:
     assert pick_scenario(task).key == key
+
+
+@pytest.mark.parametrize(
+    ("task", "key"),
+    [
+        ("start a dropshipping store", "dropship"),
+        ("launch a memecoin", "memecoin"),
+        ("build a gpt wrapper", "wrapper"),
+        ("mint an nft collection", "nft"),
+        ("deploy a single server", "prod"),
+    ],
+)
+def test_the_pack_with_the_most_keyword_hits_wins(task: str, key: str) -> None:
+    assert pick_scenario(task).key == key
+
+
+def test_ties_go_to_the_earlier_pack(tmp_path: Path) -> None:
+    first = load_scenario(keyword_pack(tmp_path, "alpha"))
+    second_path = tmp_path / "other.toml"
+    second_path.write_text(
+        '[pack]\nkey = "other"\ntask = "t"\nkeywords = ["beta", "gamma"]\n[areas]\nx = ["x.py"]\n',
+        encoding="utf-8",
+    )
+    second = load_scenario(second_path)
+    packs = {"kw": first, "other": second}
+    assert pick_scenario("alpha beta", scenarios=packs).key == "kw"
+    # repeating a keyword doesn't count twice; matching more distinct keywords does
+    assert pick_scenario("beta alpha beta", scenarios=packs).key == "kw"
+    assert pick_scenario("alpha beta gamma", scenarios=packs).key == "other"
+
+
+def test_keywords_are_stored_stripped(tmp_path: Path) -> None:
+    scenario = load_scenario(keyword_pack(tmp_path, "  zebra "))
+    assert scenario.keywords == ("zebra",)
+    assert pick_scenario("a zebra app", scenarios={"kw": scenario}).key == "kw"
+
+
+@pytest.mark.parametrize(
+    "task",
+    [
+        "jwt token refresh",
+        "key-value store",
+        "garbage collection tuning",
+        "user agent parser",
+        "command prompt theme",
+        "i'm bored, build something",
+    ],
+)
+def test_everyday_programming_words_do_not_trigger_grift_packs(task: str) -> None:
+    assert pick_scenario(task).key == "generic"

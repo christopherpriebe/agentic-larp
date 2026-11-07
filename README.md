@@ -86,14 +86,18 @@ seconds.
 | `startup` | `Deck.tsx`, `valuation.ts`, `moat.ts` | **stonks**: your ticker, which only goes up |
 | `hacker` | `exploit.c`, `payload.asm`, `proxy.go` | **hacker**: scan, dump memory, crack a password, outrun the trace |
 | `prod` | `migrations/0042.sql`, `main.tf` | **deploy**: a global rollout; nobody gets paged |
+| `dropship` | `products.json`, `checkout.liquid`, `meta_ads.py` | **dropship**: a store dashboard; markups of 1,500%, shipping in 6-8 weeks |
+| `memecoin` | `Token.sol`, `add_liquidity.ts`, `hype_bot.py` | **memecoin**: a token launch; the liquidity is locked (trust me) |
+| `wrapper` | `system_prompt.txt`, `llm_client.ts`, `pricing.ts` | **wrapper**: an AI startup racing its MRR against its API bill |
+| `nft` | `ape_001.png.md`, `Collection.sol`, `ipfs_pin.ts` | **nft**: a pixel ape minting row by row; mind the floor |
 | `generic` | whatever you typed | deploy or stonks |
 
 The hacker app plays four stages by itself (SCANNING, DUMPING MEMORY, CRACKING
 PASSWORD, TRACING) and ends on a flashing ACCESS GRANTED after roughly 25
 seconds. Every keypress pushes it forward, so mashing keys finishes sooner. Tab
 flashes ACCESS GRANTED at any time and esc logs off. When failing, the hack
-never promises access: tab flashes ACCESS DENIED and the footer stops
-advertising it.
+never promises access: tab flashes ACCESS DENIED and the footer says
+`tab: access denied`.
 
 ### Failing on purpose
 
@@ -129,6 +133,8 @@ skipped), or anywhere with `--pack FILE` (repeatable; a broken one is an
 error). Later packs replace earlier ones with the same key: built-ins, then the
 config directory, then `--pack`. `larp --list` shows them all, and repeating
 `-s` deals agents round-robin across the chosen packs.
+Without `-s`, the pack whose `keywords` match the most distinct whole words in
+your task wins (ties go to the earlier pack), and no match means `generic`.
 
 ```toml
 [pack]

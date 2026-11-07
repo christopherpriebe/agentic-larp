@@ -161,7 +161,8 @@ def pick_scenario(
         scenarios: Packs to choose from; defaults to :data:`SCENARIOS`.
 
     Returns:
-        The chosen scenario, with its task replaced by ``task`` when given.
+        The chosen scenario (the pack matching the most distinct keywords,
+        earlier packs winning ties), with its task replaced by ``task`` when given.
 
     Raises:
         LarpError: If ``key`` names no pack.
@@ -177,9 +178,15 @@ def pick_scenario(
         return _with_task(available[key], task)
     if task is not None:
         lowered = task.lower()
+        best, best_hits = None, 0
         for scenario in available.values():
-            if any(_has_word(lowered, keyword) for keyword in scenario.keywords):
-                return _with_task(scenario, task)
+            hits = sum(
+                _has_word(lowered, keyword) for keyword in set(scenario.keywords)
+            )
+            if hits > best_hits:
+                best, best_hits = scenario, hits
+        if best is not None:
+            return _with_task(best, task)
         return generic_scenario(task, rng)
     return rng.choice(list(available.values()))
 

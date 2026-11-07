@@ -153,7 +153,7 @@ class HackerScreen:
             The frame.
         """
         height = self.context.console.size.height
-        tab_hint = "tab: nothing" if self.is_failing else "tab: access granted"
+        tab_hint = "tab: access denied" if self.is_failing else "tab: access granted"
         footer = Text(
             f" {self.keystrokes} keystrokes · every key hacks faster · "
             f"{tab_hint} · `: access denied · esc: log off",
