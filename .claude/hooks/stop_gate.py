@@ -20,7 +20,12 @@ from pathlib import Path
 
 LAST_FAILURE_FILE = Path(".claude", ".stop-gate-last")
 EXTENSION_SUFFIX = ".exe" if sys.platform == "win32" else ""
-VOLATILE = re.compile(r"\b\d+(?:\.\d+)?s\b|\[gw\d+\]|0x[0-9a-f]+")
+# Timings, xdist worker ids, addresses, and pytest's progress-dot lines, whose
+# failure marker lands in a different column on every parallel run.
+VOLATILE = re.compile(
+    r"\b\d+(?:\.\d+)?s\b|\[gw\d+\]|0x[0-9a-f]+|^[.FEsxX]+ *(?:\[ *\d+%\])?$",
+    re.MULTILINE,
+)
 
 
 def _payload() -> dict[str, object]:

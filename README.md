@@ -183,6 +183,57 @@ An `action` expands to a script with one tagged line per row:
 | `ok:` / `fail:` / `note:` | a result line in green, red, or dim |
 | `say:` | a line of agent chatter |
 
+### Toolchains and pack inheritance
+
+A pack can build on others. `extends = "cpp"` (or `["a", "b"]`) in `[pack]`
+layers the parents' rules under its own. With several parents, a later
+parent's whole rule (including anything it `[extend]`ed) replaces an earlier
+parent's rule of the same name; to keep both, combine them with `[extend]` in
+the child. The pack's own `[rules]` win over all parents. A new `[extend]` table takes
+the same shapes as `[rules]` but appends alternatives to the rule resolved so
+far (the base's, a parent's, or one from your own `[rules]`), creating it if it
+doesn't exist. A concrete pack with no `task`, `[areas]` or `app` inherits them
+from its last parent that has them; `keywords` are never inherited.
+
+`abstract = true` marks a pack that exists only to be extended; its `task`,
+`[areas]`, `keywords` and `app` are all optional. The built-in toolchains
+(`cpp`, `typescript`, `python`, `rust`) are abstract packs with real build and
+test commands, listed under "toolchains" in `larp --list`. `-s cpp` explains
+that it is abstract. Your own packs in the config directory can extend them,
+and each other, in any file order (cycles are an error). `--pack` files are
+loaded in argument order, so list parents first:
+
+```toml
+[pack]
+key = "game"
+extends = ["cpp"]
+task = "build a game engine"
+
+[areas]
+render = ["render.cpp", "shaders.glsl"]
+
+[extend]
+quip = ["60 fps (on my machine)."]
+```
+
+### Work phases
+
+What an agent does is split into phases: `explore`, `implement`, `build`,
+`test` and `debug`, plus `anytime` odds and ends (git status, a quick read,
+delegation). The base grammar's `action` chooses among them, and packs and
+toolchains can override any phase rule (for example `build_command`,
+`test_command` and `build_result`). `--policy phased` walks the phases in a
+realistic rhythm: explore leads to implement, implement to build or test,
+build and test sometimes lead on to debug (the policy doesn't know whether a
+run failed), mostly implementing, with `anytime` actions sprinkled in.
+
+#### Upgrading packs
+
+The base grammar's old `bash` and `shell` rules are gone: use `build_command`,
+`test_command` and `command` instead. The phase rule names (`explore`,
+`implement`, `build`, `test`, `debug` and `anytime`) are reserved by the base;
+a pack that defines a rule with one of those names replaces that phase.
+
 ### Choice policies
 
 When a rule has several alternatives, a policy decides which one is used.
@@ -192,6 +243,7 @@ each intern gets its own policy instance.
 | Policy | Behavior |
 | --- | --- |
 | `random` (default) | weighted random, no memory |
+| `phased` | walks the work phases (explore, implement, build, test, debug) in a realistic rhythm; varied for other rules |
 | `varied` | never repeats a rule's previous pick, and shies away from older ones (still follows weights) |
 
 A policy is any object with `choose(symbol, alternatives, rng) -> int`, where

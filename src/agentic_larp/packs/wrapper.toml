@@ -1,5 +1,6 @@
 [pack]
 key = "wrapper"
+extends = "python"
 task = "build a gpt wrapper"
 keywords = [
   "wrapper", "wrappers", "gpt", "llm", "llms", "chatbot", "chatbots", "ai",
@@ -21,6 +22,25 @@ growth = ["launch_thread.md", "product_hunt.md"]
 word = [
   "prompt", "tokens", "context", "completion", "temperature", "embedding", "moat", "rag", "latency", "usage", "credits", "copilot", "magic",
 ]
+quip = [
+  "The moat is the system prompt.",
+  "Added 'think step by step'.",
+  "Sparkles added. Churn down 2%.",
+  "We are the Stripe of prompts.",
+  "Rewrote the prompt. Same output.",
+  "Token usage: yes.",
+  "Pivoted from chatbot to agent.",
+  "Added 'powered by AI' in 3 places.",
+  "Latency: 11s. Called it 'thinking'.",
+]
+final = [
+  "Product is live.",
+  "Waitlist converts at 80% (n=5).",
+  "Demo works on my prompt.",
+  "Seed round: imminent.",
+]
+
+[extend]
 code = [
   "const #word# = await llm(#word#);",
   "return llm(prompt);",
@@ -38,21 +58,4 @@ command = [
   "npx tsc --noEmit",
   "curl -s api.provider.ai/v1/complete",
   "git commit -am 'improve prompt'",
-]
-quip = [
-  "The moat is the system prompt.",
-  "Added 'think step by step'.",
-  "Sparkles added. Churn down 2%.",
-  "We are the Stripe of prompts.",
-  "Rewrote the prompt. Same output.",
-  "Token usage: yes.",
-  "Pivoted from chatbot to agent.",
-  "Added 'powered by AI' in 3 places.",
-  "Latency: 11s. Called it 'thinking'.",
-]
-final = [
-  "Product is live.",
-  "Waitlist converts at 80% (n=5).",
-  "Demo works on my prompt.",
-  "Seed round: imminent.",
 ]

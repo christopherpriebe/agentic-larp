@@ -1,5 +1,6 @@
 [pack]
 key = "girlfriend"
+extends = "cpp"
 task = "build me a girlfriend"
 keywords = ["girlfriend", "boyfriend", "partner", "date", "wife", "husband", "love", "single", "girlfriends", "boyfriends", "dating", "partners", "wives", "husbands", "loves", "dates"]
 app = "call"
@@ -19,29 +20,6 @@ word = [
   "love", "drama", "rate", "carat", "her", "you", "smile", "texts",
   "anniversary", "compliments", "red_flags", "jealousy", "cuddles",
   "patience", "playlist", "dinner",
-]
-code = [
-  "#word# = #n#;",
-  "#include <#word#>",
-  "co_await #word#;",
-  "std::move(#word#)",
-  "if (!#word#) return #word#;",
-  "auto #word# = make_#word#();",
-  "#word#.reserve(#n#);",
-  "// TODO: more #word#",
-  "static_assert(#word#);",
-  "on(SIGTERM, #word#);",
-  "forget(#word#);",
-  "#word#->#word#(#n#);",
-  "constexpr int #word# = #n#;",
-]
-command = [
-  "ninja -j16",
-  "ctest heart",
-  "valgrind -q ./her",
-  "ninja face",
-  "clang-tidy *.cpp",
-  "ninja #area#",
 ]
 quip = [
   "She is gorgeous now.",
@@ -65,4 +43,29 @@ final = [
   "Voice is perfect.",
   "Ring fits.",
   "She says hi.",
+]
+
+[extend]
+code = [
+  "#word# = #n#;",
+  "#include <#word#>",
+  "co_await #word#;",
+  "std::move(#word#)",
+  "if (!#word#) return #word#;",
+  "auto #word# = make_#word#();",
+  "#word#.reserve(#n#);",
+  "// TODO: more #word#",
+  "static_assert(#word#);",
+  "on(SIGTERM, #word#);",
+  "forget(#word#);",
+  "#word#->#word#(#n#);",
+  "constexpr int #word# = #n#;",
+]
+command = [
+  "ninja -j16",
+  "ctest heart",
+  "valgrind -q ./her",
+  "ninja face",
+  "clang-tidy *.cpp",
+  "ninja #area#",
 ]

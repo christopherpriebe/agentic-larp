@@ -1,5 +1,6 @@
 [pack]
 key = "thoughtleader"
+extends = "typescript"
 task = "write a viral linkedin post"
 keywords = [
   "linkedin", "thoughtleader", "thoughtleaders", "thoughtleadership", "broetry",
@@ -24,6 +25,25 @@ word = [
   "grateful", "pivot", "hustle", "thrilled", "leadership", "reaction", "story",
   "lesson",
 ]
+quip = [
+  "Added a line break. Impressions up 12%.",
+  "Started with 'I'm humbled'.",
+  "Nobody was fired. Hook stays.",
+  "Turned a sandwich into a leadership lesson.",
+  "Ended with 'Agree?'.",
+  "Emoji pointing down: added.",
+  "The comment pod is online.",
+  "Rewrote it. Same humblebrag.",
+  "Every sentence now has its own line.",
+]
+final = [
+  "Post is live.",
+  "Humblebrag density: on target.",
+  "Agree?",
+  "Recruiter is typing...",
+]
+
+[extend]
 code = [
   "const #word# = await composePost(#word#);",
   "post.lines.push('#word#');",
@@ -41,21 +61,4 @@ command = [
   "npx tsc --noEmit",
   "python reaction_farm.py --pod 40",
   "git commit -am 'more line breaks'",
-]
-quip = [
-  "Added a line break. Impressions up 12%.",
-  "Started with 'I'm humbled'.",
-  "Nobody was fired. Hook stays.",
-  "Turned a sandwich into a leadership lesson.",
-  "Ended with 'Agree?'.",
-  "Emoji pointing down: added.",
-  "The comment pod is online.",
-  "Rewrote it. Same humblebrag.",
-  "Every sentence now has its own line.",
-]
-final = [
-  "Post is live.",
-  "Humblebrag density: on target.",
-  "Agree?",
-  "Recruiter is typing...",
 ]

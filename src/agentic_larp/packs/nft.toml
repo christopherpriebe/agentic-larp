@@ -1,5 +1,6 @@
 [pack]
 key = "nft"
+extends = "typescript"
 task = "mint an nft collection"
 keywords = [
   "nft", "nfts", "mint", "mints", "minting", "jpeg", "jpegs", "ape", "apes",
@@ -22,6 +23,25 @@ word = [
   "ape", "mint", "floor", "gas", "trait", "reveal", "rarity", "gm", "wagmi",
   "royalty", "whitelist", "ipfs", "jpeg", "utility", "fur", "laser",
 ]
+quip = [
+  "Added laser eyes. Floor up 0.3 ETH.",
+  "Utility: coming soon.",
+  "Royalties set to 10%. Nobody pays them.",
+  "Whitelist is 40 people and a dog.",
+  "Trait rarity computed by vibes.",
+  "gm.",
+  "Gas is 300 gwei. Worth it.",
+  "Roadmap v3 published.",
+  "Image hosted on IPFS (one laptop).",
+]
+final = [
+  "Collection is live.",
+  "Reveal went fine.",
+  "Discord is at 60k gms.",
+  "Floor is holding.",
+]
+
+[extend]
 code = [
   "uint256 public maxSupply = 10000;",
   "function #word#(uint256 quantity) external payable {",
@@ -39,21 +59,4 @@ command = [
   "forge test",
   "ipfs add -r ./images",
   "python hype_bot.py",
-]
-quip = [
-  "Added laser eyes. Floor up 0.3 ETH.",
-  "Utility: coming soon.",
-  "Royalties set to 10%. Nobody pays them.",
-  "Whitelist is 40 people and a dog.",
-  "Trait rarity computed by vibes.",
-  "gm.",
-  "Gas is 300 gwei. Worth it.",
-  "Roadmap v3 published.",
-  "Image hosted on IPFS (one laptop).",
-]
-final = [
-  "Collection is live.",
-  "Reveal went fine.",
-  "Discord is at 60k gms.",
-  "Floor is holding.",
 ]

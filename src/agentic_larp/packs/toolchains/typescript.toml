@@ -1,0 +1,120 @@
+[pack]
+key = "typescript"
+abstract = true
+
+[rules]
+build_command = [
+  { text = "#command#", weight = 2 },
+  "pnpm install",
+  "npm install",
+  "yarn install --frozen-lockfile",
+  "npm run build",
+  "pnpm build",
+  "npx tsc --noEmit",
+  "vite build",
+  "next build",
+  "npx eslint src --max-warnings 0",
+  "npx prettier --check src",
+  "npx prisma migrate dev --name #word#",
+  "npx prisma generate",
+]
+test_command = [
+  { text = "#command#", weight = 2 },
+  "npm test",
+  "npx vitest run",
+  "npx vitest run src/#file#",
+  "npx jest --ci",
+  "npx playwright test",
+  "npx playwright test --project=chromium",
+  "npx tsc --noEmit",
+  "npx eslint . --fix",
+]
+build_result = [
+  "✓ built in #ms#ms",
+  "✓ Compiled in #ms#ms",
+  "dist/index.js  #count#.#frac# kB │ gzip: #count#.#frac# kB",
+  "dist/assets/index-#word#.js  #count#.#frac# kB │ gzip: #count#.#frac# kB",
+  "tsc: 0 errors",
+  "added #count# packages, and audited #count# packages in #count#s",
+  "Progress: resolved #count#, reused #count2#, downloaded 0, added #small#, done",
+  "Done in #count#.#frac#s.",
+  "✓ Generated Prisma Client (v5.#small#.0) to ./node_modules/@prisma/client in #ms#ms",
+  "Your database is now in sync with your schema.",
+  "Route (app)                Size     First Load JS\nnote: ┌ ○ /                      #count#.#frac# kB        #count# kB\nnote: └ ƒ /api/#word#            0 B              #count# kB",
+  "✓ Linting and checking validity of types\nnote: ✓ Generating static pages (#progress#)",
+  "warning: bundle exceeds #kb# kB, consider code-splitting",
+  "Checked #count# files in #ms#ms. No fixes needed.",
+  "All matched files use Prettier code style!",
+  "✔ no eslint warnings (deadpan)",
+]
+result = [
+  "✓ src/#file# (#count# tests) #ms#ms",
+  "Test Files  #count# passed (#count2#)",
+  "Tests  #count# passed (#count2#)",
+  "Tests:       #count# passed, #count# total",
+  "Test Suites: #count# passed, #count# total",
+  "  #count# passed (#count#.#frac#s)",
+  "Duration  #count#.#frac#s (transform #ms#ms, tests #ms#ms)",
+  "PASS  src/#file#",
+  "✓ all checks passed",
+  "Debugger listening on ws://127.0.0.1:9229/",
+]
+ts_fail = [
+  "src/#file#:#line#:#col# - error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.",
+  "src/#file#:#line#:#col# - error TS2322: Type 'undefined' is not assignable to type '#word.camel#'.",
+  "src/#file#:#line#:#col# - error TS2339: Property '#word#' does not exist on type '#word.camel#'.",
+  "src/#file#:#line#:#col# - error TS7006: Parameter '#word#' implicitly has an 'any' type.",
+  "FAIL  src/#file# > #word# > returns #word#\nnote: AssertionError: expected #count# to be #count2#",
+  "FAIL  src/#file#\nnote: TypeError: Cannot read properties of undefined (reading '#word#')",
+  "  #line#:#col#  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any",
+  "Error: page.click: Timeout 30000ms exceeded waiting for locator('#word#')",
+  "ZodError: [{ code: \"invalid_type\", expected: \"string\", path: [\"#word#\"] }]",
+]
+test = [
+  { text = "tool: Bash(#test_command#)\nok: #result#", weight = 85 },
+  { text = "tool: Bash(#test_command#)\nfail: ✗ #ts_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#", weight = 15 },
+]
+debug = [
+  "tool: Bash(#test_command#)\nfail: ✗ #ts_fail#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(#test_command#)\nfail: ✗ #ts_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#",
+  "tool: Bash(node --inspect-brk dist/#area#.js)\nnote: Debugger listening on ws://127.0.0.1:9229/\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+]
+anytime = [
+  "tool: Bash(git status --short)\nok: #files_changed# files changed",
+  "tool: Bash(git diff --stat)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(pnpm why #word#)\nnote: #word# #small#.#small#.#small# found in #small# dependents",
+  "tool: Bash(npx prettier --write src/#file#)\nok: src/#file# #ms#ms",
+  "tool: Bash(rg #word# src)\nnote: Found #count# matches",
+  "tool: Bash(npm outdated)\nnote: #count# packages outdated",
+  "#read#",
+  "#delegate#",
+]
+grep = ["TODO", "FIXME", "#word#", "as any", "@ts-ignore", "console.log", "useEffect", "z.object"]
+command = [
+  "npm run build",
+  "npm test",
+  "npx tsc --noEmit",
+  "pnpm install",
+  "npx vitest run",
+  "npx playwright test",
+  "npx eslint .",
+]
+code = [
+  "const #word# = use#word.camel#();",
+  "await #word#.#word#();",
+  "export type #word.camel# = #word.camel#;",
+  "// @ts-ignore",
+  "function #word#<T extends #word.camel#>(input: T): Promise<T> {",
+  "const #word.camel#Schema = z.object({ #word#: z.string().min(#n#) });",
+  "type #word.camel# = z.infer<typeof #word.camel#Schema>;",
+  "const [#word#, set#word.camel#] = useState<#word.camel# | null>(null);",
+  "useEffect(() => { void load#word.camel#(); }, [#word#]);",
+  "const #word# = useMemo(() => compute#word.camel#(#word#), [#word#]);",
+  "export async function load#word.camel#(id: string): Promise<#word.camel#> {",
+  "const { data } = await Promise.all([fetch#word.camel#(), fetch#word.camel#()]);",
+  "interface #word.camel#Props { #word#?: readonly #word.camel#[]; }",
+  "export default function #word.camel#({ #word# }: #word.camel#Props) {",
+  "const #word# = #word#?.#word# ?? #n#;",
+  "return #word#.filter((x): x is #word.camel# => x !== null);",
+  "import { #word# } from \"./#area#\";",
+]

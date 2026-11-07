@@ -7,7 +7,7 @@ from dataclasses import replace
 
 from agentic_larp._errors import LarpError
 from agentic_larp._grammar import Grammar
-from agentic_larp._packs import SCENARIOS, Scenario, base_grammar
+from agentic_larp._packs import SCENARIOS, TOOLCHAINS, Scenario, base_grammar
 
 _MAX_AREAS = 8
 _MIN_WORD_LENGTH = 3
@@ -165,21 +165,28 @@ def pick_scenario(
         earlier packs winning ties), with its task replaced by ``task`` when given.
 
     Raises:
-        LarpError: If ``key`` names no pack.
+        LarpError: If ``key`` names no pack, or an abstract one, or there is no
+            runnable pack to pick at random.
     """
     rng = rng or random.Random()
-    available = SCENARIOS if scenarios is None else scenarios
+    available = {**SCENARIOS, **TOOLCHAINS} if scenarios is None else scenarios
+    runnable = {name: pack for name, pack in available.items() if not pack.abstract}
     if key == "generic":
         return generic_scenario(task or "build the thing", rng)
     if key is not None:
         if key not in available:
             message = f"no pack called {key!r}"
             raise LarpError(message)
+        if available[key].abstract:
+            message = (
+                f"{key!r} is abstract and can't be run directly; extend it from a pack"
+            )
+            raise LarpError(message)
         return _with_task(available[key], task)
     if task is not None:
         lowered = task.lower()
         best, best_hits = None, 0
-        for scenario in available.values():
+        for scenario in runnable.values():
             hits = sum(
                 _has_word(lowered, keyword) for keyword in set(scenario.keywords)
             )
@@ -188,7 +195,10 @@ def pick_scenario(
         if best is not None:
             return _with_task(best, task)
         return generic_scenario(task, rng)
-    return rng.choice(list(available.values()))
+    if not runnable:
+        message = "no runnable pack to choose from (every pack is abstract)"
+        raise LarpError(message)
+    return rng.choice(list(runnable.values()))
 
 
 def _has_word(text: str, keyword: str) -> bool:

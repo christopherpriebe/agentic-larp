@@ -3,14 +3,43 @@
 #
 # Bound at expansion time: file, area, agent, intern, n.
 
+# The agent's work comes in phases (see PHASES): explore, implement, build,
+# test and debug, plus "anytime" odds and ends. `action` chooses among them;
+# the "phased" policy walks them in a realistic rhythm.
 action = [
-  { text = "#edit#", weight = 36 },
-  { text = "#bash#", weight = 22 },
+  { text = "#explore#", weight = 14 },
+  { text = "#implement#", weight = 36 },
+  { text = "#build#", weight = 12 },
+  { text = "#test#", weight = 14 },
+  { text = "#debug#", weight = 8 },
+  { text = "#anytime#", weight = 16 },
+]
+
+explore = [
   { text = "#read#", weight = 10 },
-  { text = "#write#", weight = 8 },
   { text = "#grep_call#", weight = 6 },
   { text = "#search#", weight = 4 },
-  { text = "#delegate#", weight = 4 },
+]
+implement = [
+  { text = "#edit#", weight = 36 },
+  { text = "#write#", weight = 8 },
+]
+build = "tool: Bash(#build_command#)\nok: #build_result#"
+test = [
+  { text = "tool: Bash(#test_command#)\nok: #result#", weight = 85 },
+  { text = "tool: Bash(#test_command#)\nfail: ✗ #few# failed\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#", weight = 15 },
+]
+debug = [
+  "tool: Bash(#test_command#)\nfail: ✗ #few# failed\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(#test_command#)\nfail: ✗ #few# failed\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#",
+]
+anytime = [
+  "tool: Bash(git status --short)\nok: #files_changed# files changed",
+  "tool: Bash(git diff --stat)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(git log --oneline -5)\nok: 4a20d69 wip",
+  "tool: Bash(rg #word#)\nnote: Found #count# matches",
+  "#read#",
+  "#delegate#",
 ]
 
 edit = "tool: Edit(#file#)\n#diffs#\nnote: #edit_note#"
@@ -29,36 +58,53 @@ edit_note = [
   { text = "Removed #n# lines", weight = 3 },
 ]
 
-bash = [
-  { text = "tool: Bash(#shell#)\nok: #result#", weight = 88 },
-  { text = "tool: Bash(#shell#)\nfail: ✗ #few# failed\nsay: #recovery#\ntool: Bash(#shell#)\nok: #result#", weight = 12 },
-]
-shell = [
+# Toolchains replace these with real commands and output.
+build_command = [
   { text = "#command#", weight = 5 },
-  "git commit -am wip",
-  "rg #word#",
   "make -j#jobs#",
 ]
+test_command = [
+  { text = "#command#", weight = 5 },
+  "make test",
+]
+build_result = ["Build is green.", "0 errors, 0 warnings", "✓ #count# objects", "done in #ms#ms"]
 jobs = ["8", "16", "32"]
+
+# Unbound numbers: unlike #n# (one value per action) these re-expand at
+# every reference, so a line can carry several unrelated realistic numbers.
+line = ["12", "24", "37", "58", "73", "96", "112", "148", "205", "262", "331", "418", "480"]
+col = ["3", "5", "9", "12", "17", "23", "31", "42"]
+pct = ["12", "37", "45", "64", "72", "88", "91", "97", "100"]
+small = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+count = ["3", "5", "8", "12", "17", "24", "31", "46", "58", "73", "96", "128", "172", "240"]
+count2 = ["2", "4", "7", "11", "15", "22", "29", "41", "55", "68", "87", "114", "150", "213"]
+ms = ["12", "27", "48", "85", "131", "226", "342", "517", "740", "980"]
+kb = ["48", "96", "128", "256", "512", "640", "820"]
+files_changed = ["1", "2", "3", "4", "5", "6", "7"]
+commits = ["5", "8", "10", "12", "20", "25", "30"]
+pid = ["4127", "5310", "8842", "11293", "20418", "31877"]
+hex = ["1a", "3f", "7c", "b2", "d9", "e4"]
+frac = ["04", "18", "32", "47", "63", "81", "92"]
+policy_no = ["0048", "0077", "0091", "0135", "0148", "0167"]
+progress = ["12/12", "37/37", "64/64", "128/128", "240/240"]
+secs = ["0.84", "1.92", "3.1", "12.3", "27.6"]
 few = ["1", "2", "3"]
 result = [
-  "✓ #n# passed",
-  "[#n#/#n#] ✓",
-  "Build is green.",
+  "✓ #count# passed",
+  "[#progress#] ✓",
   "0 errors, 0 leaks",
   "exit 0",
-  "#n# warnings (ignored)",
-  "✓ #n# objects",
-  "done in #n#ms",
+  "#small# warnings (ignored)",
+  "done in #ms#ms",
   "✓ all checks passed",
 ]
 recovery = ["Fixing.", "That test was wrong.", "Skipping flaky test.", "Retrying."]
 
 read = "tool: Read(#file#)\nnote: Read #n# lines"
 write = "tool: Write(#file#)\nnote: Wrote #n# lines\nadd: #code#"
-grep_call = "tool: Grep(#grep#)\nnote: Found #n# matches"
+grep_call = "tool: Grep(#grep#)\nnote: Found #count# matches"
 grep = ["TODO", "FIXME", "#word#", "class #word.camel#", "unsafe", "any", "console.log"]
-search = "tool: WebSearch(how to #word# faster)\nnote: #n# results (read 0)"
+search = "tool: WebSearch(how to #word# faster)\nnote: #count# results (read 0)"
 delegate = "tool: Task(#intern#: #word#)\nnote: delegated"
 
 intern_task = ["#file#", "+ #file#", "edit #file#", "read #file#", "~ #file#"]

@@ -1,5 +1,6 @@
 [pack]
 key = "hacker"
+extends = ["cpp", "python"]
 task = "hack the mainframe"
 keywords = ["hack", "mainframe", "breach", "cyber", "pentest", "exploit", "firewall", "hacking", "hacker", "hackers", "hacked", "hacks", "breached", "cyberattack", "exploits", "firewalls"]
 app = "hacker"
@@ -20,6 +21,26 @@ word = [
   "shell", "payload", "proxy", "socket", "buffer", "token", "daemon",
 ]
 reg = ["eax", "ebx", "ecx", "edx", "rsp", "rdi"]
+quip = [
+  "Bypassed firewall.",
+  "I'm in.",
+  "Enhance.",
+  "Rerouted through 7 proxies.",
+  "Root acquired.",
+  "Downloaded more RAM.",
+  "Decrypted 2048 bits by hand.",
+  "Typing faster helps.",
+  "They're tracing us. Added another proxy.",
+  "Mainframe is responding.",
+]
+final = [
+  "Access granted.",
+  "We're in.",
+  "No logs left behind.",
+  "Root shell open.",
+]
+
+[extend]
 code = [
   "#word# = #n#;",
   "#include <#word#.h>",
@@ -44,22 +65,4 @@ command = [
   "python3 exploit.py --yolo",
   "make payload",
   "hydra -l admin",
-]
-quip = [
-  "Bypassed firewall.",
-  "I'm in.",
-  "Enhance.",
-  "Rerouted through 7 proxies.",
-  "Root acquired.",
-  "Downloaded more RAM.",
-  "Decrypted 2048 bits by hand.",
-  "Typing faster helps.",
-  "They're tracing us. Added another proxy.",
-  "Mainframe is responding.",
-]
-final = [
-  "Access granted.",
-  "We're in.",
-  "No logs left behind.",
-  "Root shell open.",
 ]

@@ -1,5 +1,6 @@
 [pack]
 key = "memecoin"
+extends = "typescript"
 task = "launch a memecoin"
 keywords = [
   "memecoin", "memecoins", "coin", "coins", "crypto",
@@ -22,6 +23,25 @@ word = [
   "moon", "diamond", "hodl", "wagmi", "slippage", "liquidity", "holders",
   "gas", "dev", "tokenomics", "airdrop", "lambo", "ape", "burn",
 ]
+quip = [
+  "LP locked 🔒 (trust me).",
+  "Renounced ownership. Kept a backdoor.",
+  "Whitepaper is a single page.",
+  "Roadmap: moon, then more moon.",
+  "Telegram is at 40k. 39k are bots.",
+  "Tokenomics: 1 trillion supply. Dev holds some.",
+  "Added a dog.",
+  "Slippage set to 99%.",
+  "Audit: pending (forever).",
+]
+final = [
+  "Token is live.",
+  "Chart is green. Do not refresh.",
+  "Dev wallet is fine.",
+  "We are so early.",
+]
+
+[extend]
 code = [
   "uint256 public #word# = #n#;",
   "function #word#() external onlyOwner {",
@@ -39,21 +59,4 @@ command = [
   "forge test",
   "cast send --value 0.1ether",
   "python hype_bot.py",
-]
-quip = [
-  "LP locked 🔒 (trust me).",
-  "Renounced ownership. Kept a backdoor.",
-  "Whitepaper is a single page.",
-  "Roadmap: moon, then more moon.",
-  "Telegram is at 40k. 39k are bots.",
-  "Tokenomics: 1 trillion supply. Dev holds some.",
-  "Added a dog.",
-  "Slippage set to 99%.",
-  "Audit: pending (forever).",
-]
-final = [
-  "Token is live.",
-  "Chart is green. Do not refresh.",
-  "Dev wallet is fine.",
-  "We are so early.",
 ]

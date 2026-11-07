@@ -17,6 +17,7 @@ from agentic_larp._grid import Grid
 from agentic_larp._keys import is_interactive
 from agentic_larp._packs import (
     SCENARIOS,
+    TOOLCHAINS,
     Scenario,
     default_pack_dirs,
     discover_scenarios,
@@ -349,10 +350,10 @@ def _collect_packs(files: list[Path], console: Console) -> dict[str, Scenario]:
     def warn(error: GrammarError) -> None:
         _print_unwrapped(console, f"[yellow]warning: {escape(str(error))}[/]")
 
-    packs = dict(SCENARIOS)
+    packs = {**TOOLCHAINS, **SCENARIOS}
     packs.update(discover_scenarios(default_pack_dirs(), on_error=warn))
     for file in files:
-        scenario = load_scenario(file)
+        scenario = load_scenario(file, packs=packs)
         packs[scenario.key] = scenario
     return packs
 
@@ -365,11 +366,17 @@ def _print_list(
 ) -> None:
     console.print("[bold]scenarios[/]  (picked by keywords in your task, or -s)")
     for key, scenario in packs.items():
+        if scenario.abstract:
+            continue
         console.print(
             f"  [cyan]{escape(key):<11}[/] {escape(scenario.task)}  "
             f"[dim]→ launches {escape(scenario.app)}[/]"
         )
     console.print("  [cyan]generic    [/] anything else you type")
+    console.print("\n[bold]toolchains[/]  (abstract; extend them from a pack)")
+    for key, scenario in packs.items():
+        if scenario.abstract:
+            console.print(f"  [cyan]{escape(key):<11}[/]")
     console.print("\n[bold]policies[/]  (--policy NAME)")
     for name in policies:
         console.print(f"  [cyan]{escape(name):<11}[/]")

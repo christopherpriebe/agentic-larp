@@ -15,6 +15,7 @@ from agentic_larp._keys import Keys, KeySource, is_interactive, parse_keys
 from agentic_larp._log import LogLine
 from agentic_larp._packs import (
     SCENARIOS,
+    TOOLCHAINS,
     Scenario,
     base_grammar,
     default_pack_dirs,
@@ -22,8 +23,10 @@ from agentic_larp._packs import (
     load_scenario,
 )
 from agentic_larp._policies import (
+    PHASES,
     POLICY_ENTRY_POINT_GROUP,
     ChoicePolicy,
+    PhasedPolicy,
     RandomPolicy,
     VariedPolicy,
     policy_registry,
@@ -41,10 +44,12 @@ from agentic_larp._theater import SPOTLIGHT_HOLD, ShowSettings, Theater, render_
 
 __all__ = [
     "BOUND_SYMBOLS",
+    "PHASES",
     "POLICY_ENTRY_POINT_GROUP",
     "REQUIRED_SYMBOLS",
     "SCENARIOS",
     "SPOTLIGHT_HOLD",
+    "TOOLCHAINS",
     "Agent",
     "ChoicePolicy",
     "Grammar",
@@ -55,6 +60,7 @@ __all__ = [
     "Keys",
     "LarpError",
     "LogLine",
+    "PhasedPolicy",
     "RandomPolicy",
     "Scenario",
     "ShowSettings",

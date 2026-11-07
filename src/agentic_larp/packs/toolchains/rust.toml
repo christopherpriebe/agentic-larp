@@ -1,0 +1,115 @@
+[pack]
+key = "rust"
+abstract = true
+
+[rules]
+build_command = [
+  { text = "#command#", weight = 2 },
+  "cargo build",
+  "cargo build --release",
+  "cargo check",
+  "cargo check --all-targets",
+  "cargo clippy -- -D warnings",
+  "cargo fmt --check",
+  "cargo flamegraph --bin #area#",
+  "cargo add #word#",
+  "RUST_BACKTRACE=1 cargo run",
+  "cargo run --release -- --#word# #n#",
+]
+test_command = [
+  { text = "#command#", weight = 2 },
+  "cargo test",
+  "cargo test --release",
+  "cargo test #word# -- --nocapture",
+  "cargo nextest run",
+  "cargo nextest run -E 'test(#word#)'",
+  "cargo clippy --all-targets",
+  "RUST_BACKTRACE=1 cargo test",
+]
+build_result = [
+  "Compiling #area# v0.1.0 (/app)",
+  "Compiling #word# v#few#.#small#.0",
+  "Finished `dev` profile [unoptimized + debuginfo] target(s) in #count#.#frac#s",
+  "Finished `release` profile [optimized] target(s) in #count#.#frac#s",
+  "warning: `#area#` (bin \"#area#\") generated #few# warnings",
+  "    Checking #area# v0.1.0 (/app)\nnote:     Finished `dev` profile target(s) in 0.#frac#s",
+  "    Updating crates.io index\nnote:      Locking #count# packages",
+  "      Adding #word# v#few#.#small#.0 to dependencies",
+  "Diff in src/#file# at line #line#:",
+  "[ perf record: Captured and wrote #count#.#frac# MB perf.data ]\nnote: writing flamegraph to \"flamegraph.svg\"",
+  "     Running `target/debug/#area#`",
+]
+result = [
+  "test result: ok. #count# passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.#frac#s",
+  "test #word#::works ... ok",
+  "test #word#::#word#_roundtrips ... ok\nnote: test result: ok. #count# passed; 0 failed",
+  "     Summary [   0.#frac#s] #count# tests run: #count# passed, 0 skipped",
+  "        PASS [   0.#frac#s] #area# #word#::works",
+  "Finished `test` profile [unoptimized + debuginfo] target(s) in #count#.#frac#s",
+  "running #count# tests",
+  "exit 0",
+  "✓ all checks passed",
+]
+rs_fail = [
+  "error[E0502]: cannot borrow `#word#` as mutable because it is also borrowed as immutable\nnote:  --> src/#file#:#line#:#col#",
+  "error[E0382]: borrow of moved value: `#word#`\nnote:  --> src/#file#:#line#:#col#",
+  "error[E0308]: mismatched types: expected `&str`, found `String`\nnote:  --> src/#file#:#line#:#col#",
+  "error[E0599]: no method named `#word#` found for struct `#word.camel#` in the current scope",
+  "error[E0106]: missing lifetime specifier\nnote:  --> src/#file#:#line#:#col#",
+  "error[E0277]: the `?` operator can only be used in a function that returns `Result` or `Option`",
+  "error[E0425]: cannot find value `#word#` in this scope",
+  "test #word#::#word#_fails ... FAILED",
+  "thread 'main' panicked at src/#file#:#line#:#col#:\nnote: called `Option::unwrap()` on a `None` value",
+  "thread '#word#::works' panicked at src/#file#:#line#:#col#:\nnote: assertion `left == right` failed\nnote:   left: #count#\nnote:  right: #count2#",
+  "error: this `if` has identical blocks\nnote:  --> src/#file#:#line#:#col#\nnote:  = note: `-D clippy::if-same-then-else` implied by `-D warnings`",
+  "warning: unused variable: `#word#`\nnote:  --> src/#file#:#line#:#col#",
+]
+test = [
+  { text = "tool: Bash(#test_command#)\nok: #result#", weight = 85 },
+  { text = "tool: Bash(#test_command#)\nfail: ✗ #rs_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#", weight = 15 },
+]
+debug = [
+  "tool: Bash(#test_command#)\nfail: ✗ #rs_fail#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(#test_command#)\nfail: ✗ #rs_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#",
+  "tool: Bash(rust-gdb target/debug/#area#)\nnote: Reading symbols from target/debug/#area#...\nnote: Breakpoint 1 at 0x#pid#: file src/#file#, line #line#.\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(RUST_BACKTRACE=1 cargo run)\nfail: ✗ thread 'main' panicked at src/#file#:#line#:#col#:\nnote:    0: rust_begin_unwind\nnote:    1: #area#::#word#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+]
+anytime = [
+  "tool: Bash(git status --short)\nok: #files_changed# files changed",
+  "tool: Bash(git diff --stat)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(cargo fmt)\nok: formatted src/#file#",
+  "tool: Bash(cargo tree -i #word#)\nnote: #word# v#few#.#small#.0 used by #few# crates",
+  "tool: Bash(cargo update -p #word#)\nnote: Updating #word# v#few#.#small#.0 -> v#few#.#small#.1",
+  "tool: Bash(rg #word# src)\nnote: Found #count# matches",
+  "#read#",
+  "#delegate#",
+]
+grep = ["TODO", "FIXME", "#word#", "unsafe", "unwrap()", "clone()", "dbg!", "impl #word.camel#"]
+command = [
+  "cargo test",
+  "cargo build --release",
+  "cargo clippy",
+  "cargo check",
+  "cargo nextest run",
+  "cargo fmt --check",
+]
+code = [
+  "let #word# = #word#()?;",
+  "#word#.unwrap()",
+  "fn #word#() -> #word.camel# {",
+  "#word#.clone()",
+  "impl #word.camel# {     pub fn new(#word#: u32) -> Self { Self { #word# } } }",
+  "pub fn #word#(&self) -> Result<#word.camel#, Error> {",
+  "fn #word#<'a>(input: &'a str) -> &'a str {",
+  "let #word# = #word#.iter().map(|x| x.#word#).collect::<Vec<_>>();",
+  "impl #word.camel# for #word.camel# {",
+  "pub trait #word.camel# { fn #word#(&self) -> u32; }",
+  "#[derive(Debug, Clone, PartialEq)] pub struct #word.camel# { pub #word#: u32 }",
+  "async fn #word#(client: &Client) -> anyhow::Result<()> {",
+  "let #word# = tokio::spawn(async move { #word#.await });",
+  "match #word# { Some(v) => v, None => return Err(Error::#word.camel#) }",
+  "let mut #word# = HashMap::<String, #word.camel#>::new();",
+  "#[tokio::main] async fn main() -> anyhow::Result<()> {",
+  "#[test] fn #word#_works() { assert_eq!(#word#(), #n#); }",
+  "use std::sync::{Arc, Mutex};",
+]
