@@ -292,6 +292,47 @@ Then run `larp --policy heaviest`. A plugin that fails to load prints a
 warning and is skipped; choosing something that is not a policy is a usage
 error.
 
+### Events
+
+The sim announces what happens on `sim.events`, a typed bus. `subscribe` takes
+an event class (subclasses count, so `Event` hears everything) and a handler,
+and returns a function that unsubscribes. Handlers run in subscription order
+and their exceptions propagate.
+
+```python
+unsubscribe = sim.events.subscribe(TodoDone, lambda event: print(event.todo.text))
+```
+
+| Event | Fields | When |
+| --- | --- | --- |
+| `AgentSpawned` | `agent` | an agent is spawned after the sim is created (the starting agents are already in `sim.agents`) |
+| `LineShown` | `agent`, `line` | a line enters an agent's log |
+| `TodoDone` | `agent`, `todo` | an agent completes a todo |
+| `ScopeCreep` | `agent`, `added` | an agent finds more todos |
+| `AgentFinished` | `agent`, `final` | an agent wraps up |
+| `Converged` | | every agent finished its todos; never once shipping has started, so never after a rush |
+| `ShipStarted` | | shipping starts, once: on the first `ship()` (the rush) or when the ready stage ships after convergence (`sim.start_ship()`) |
+| `Report` | `who`, `text` | a line for the report feed (`sim.report(who, text)`) |
+
+### Widgets
+
+The wall has four regions: `header`, `swarm`, `footer` and `panel` (one per
+agent). A full-width region is a `Widget`, with `height(width, available) ->
+int` (rows wanted; 0 hides it) and `render(width)`. The `panel` region is a
+`PanelWidget`, with `render(agent)`. Each is built once from a factory that
+takes the `Wall`, so it can subscribe to `wall.sim.events`. Register a class or
+function under the `agentic_larp.widgets` entry-point group, named after the
+region it replaces; the rest stay built in.
+
+```toml
+[project.entry-points."agentic_larp.widgets"]
+footer = "my_package.widgets:Footer"
+```
+
+`Wall(sim, console, widgets={"footer": Footer})` does the same in code. A
+widget plugin that fails to load, or is named after an unknown region, stops
+the show with an error, like stage and app plugins.
+
 ### Writing your own app
 
 An app is a function that takes an `AppContext`. The usual shape is a screen

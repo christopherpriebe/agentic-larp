@@ -1,96 +1,32 @@
 """The agent wall: a screen of fake agents furiously doing nothing."""
 
+from __future__ import annotations
+
 import math
-from collections.abc import Iterator
+from collections.abc import Callable, Mapping
 from typing import Literal, TypeAlias
 
-from rich import box
-from rich.console import Console, ConsoleOptions, Group
+from rich.console import Console, RenderableType
 from rich.layout import Layout
-from rich.panel import Panel
-from rich.rule import Rule
-from rich.table import Table
 from rich.text import Text
 
+from agentic_larp._errors import LarpError
 from agentic_larp._grid import Grid
-from agentic_larp._log import LogLine
-from agentic_larp._sim import Agent, Sim, format_duration, format_tokens
+from agentic_larp._sim import Agent, Sim
+from agentic_larp._widgets import (
+    REGIONS,
+    PanelWidget,
+    Widget,
+    builtin_widgets,
+)
 
-SPINNER = "·✢✳✶✻✽✻✶✳✢"
-ACCENT = "#e8875b"
-BORDER = "#3a4a5a"
-_DIFF_STYLES = {"-": "white on #7a1f1f", "+": "white on #1f6b2c"}
 PANEL_MIN_WIDTH = 38
-PANEL_MIN_HEIGHT = 7
-_HEADER_HEIGHT = 4
-_TILE_WIDTH = 15
-_TALL_TERMINAL = 34
 _BUFFER_LIMIT = 60
-_LAUNCH_LINE_SECONDS = 0.45
 SPOTLIGHT_HOLD = 2.0
 
 
-def spinner(now: float, offset: float = 0.0) -> str:
-    """Return the spinner frame for a moment in time.
-
-    Args:
-        now: Seconds since start.
-        offset: Phase shift, so neighbouring spinners don't move in lockstep.
-
-    Returns:
-        One character.
-    """
-    return SPINNER[int((now + offset) * 10) % len(SPINNER)]
-
-
-def render_entry(entry: LogLine, width: int) -> Text:
-    """Render one log line at exactly the given width.
-
-    Args:
-        entry: A line from an agent's log.
-        width: Cells available.
-
-    Returns:
-        A single, padded line.
-    """
-    if entry.kind == "tool":
-        line = Text.assemble(
-            ("● ", "green"),
-            (entry.label, "bold"),
-            ("(", "dim"),
-            entry.text,
-            (")", "dim"),
-        )
-    elif entry.kind == "diff":
-        line = Text(
-            f"{entry.number:>3} {entry.label} {entry.text}",
-            style=_DIFF_STYLES[entry.label],
-        )
-    elif entry.kind == "result":
-        line = Text.assemble(("  ⎿  ", "dim"), (entry.text, entry.label))
-    elif entry.kind == "done":
-        line = Text(entry.text, style="bold green")
-    else:
-        line = Text(entry.text, style="bold white")
-    line.no_wrap = True
-    line.truncate(width, overflow="ellipsis", pad=True)
-    return line
-
-
-class AgentBody:
-    """The tail of an agent's log, one line per entry, fitted to its panel."""
-
-    def __init__(self, agent: Agent) -> None:
-        self.agent = agent
-
-    def __rich_console__(
-        self, console: Console, options: ConsoleOptions
-    ) -> Iterator[Text]:
-        height = options.height or PANEL_MIN_HEIGHT
-        entries = list(self.agent.log)[-height:]
-        lines = [Text("")] * (height - len(entries))
-        lines += [render_entry(entry, options.max_width) for entry in entries]
-        yield Text("\n", no_wrap=True).join(lines)
+def _clamp(rows: int, available: int) -> int:
+    return max(0, min(rows, available))
 
 
 Mode: TypeAlias = Literal["running", "wrapping", "ready", "launching"]
@@ -120,6 +56,7 @@ class Wall:
         *,
         grid: Grid | None = None,
         pace: float = 1.0,
+        widgets: Mapping[str, Callable[[Wall], Widget | PanelWidget]] | None = None,
     ) -> None:
         self.sim = sim
         self.console = console
@@ -133,6 +70,31 @@ class Wall:
         self.mode: Mode = "running"
         self.mode_since = 0.0
         self.launch_lines: list[tuple[str, str]] = []
+        factories = builtin_widgets()
+        for region, factory in (widgets or {}).items():
+            if region not in REGIONS:
+                message = f"unknown widget region {region!r}; regions are {', '.join(REGIONS)}"
+                raise LarpError(message)
+            factories[region] = factory
+        self._header = self._build_region(factories, "header")
+        self._swarm = self._build_region(factories, "swarm")
+        self._footer = self._build_region(factories, "footer")
+        panel = factories["panel"](self)
+        if not isinstance(panel, PanelWidget):
+            message = "the 'panel' widget needs a render(agent) method"
+            raise LarpError(message)
+        self._panel = panel
+
+    def _build_region(
+        self,
+        factories: Mapping[str, Callable[[Wall], Widget | PanelWidget]],
+        region: str,
+    ) -> Widget:
+        built = factories[region](self)
+        if not isinstance(built, Widget):
+            message = f"the {region!r} widget needs height() and render() methods"
+            raise LarpError(message)
+        return built
 
     def set_mode(self, mode: Mode) -> None:
         """Dress the wall for a stage.
@@ -228,6 +190,45 @@ class Wall:
         self._last_swap = now
 
     # ---- rendering -------------------------------------------------------------
+    def grid_shape(self, width: int) -> tuple[int, int]:
+        """Return the panel grid for a console width.
+
+        Args:
+            width: Console width.
+
+        Returns:
+            Columns and rows.
+        """
+        if self.grid is not None:
+            return self.grid.columns, self.grid.rows
+        count = len(self.visible_agents())
+        columns = max(1, min(count, width // PANEL_MIN_WIDTH))
+        return columns, math.ceil(count / columns)
+
+    def draw_header(self) -> tuple[RenderableType, int]:
+        """Draw the header widget, for stages that lay out their own screen.
+
+        Returns:
+            The header and the rows it gets (0 hides it).
+        """
+        width, height = self.console.size
+        rows = _clamp(self._header.height(width, height), height)
+        return self._header.render(width), rows
+
+    def draw_footer(self, header_rows: int) -> tuple[RenderableType, int]:
+        """Draw the footer widget, for stages that lay out their own screen.
+
+        Args:
+            header_rows: Rows the header takes.
+
+        Returns:
+            The footer and the rows it gets (0 hides it).
+        """
+        width, height = self.console.size
+        available = height - header_rows
+        rows = _clamp(self._footer.height(width, available), available)
+        return self._footer.render(width), rows
+
     def render(self) -> Layout:
         """Build the whole screen for the current frame.
 
@@ -235,40 +236,37 @@ class Wall:
             A layout sized to the console.
         """
         width, height = self.console.size
-        sim = self.sim
         agents = self.visible_agents()
-        if self.grid is None:
-            columns = max(1, min(len(agents), width // PANEL_MIN_WIDTH))
-            rows = math.ceil(len(agents) / columns)
-        else:
-            columns, rows = self.grid.columns, self.grid.rows
-        swarm_rows = 0
-        if sim.interns:
-            per_row = max(1, width // _TILE_WIDTH)
-            swarm_rows = min(
-                2 if height >= _TALL_TERMINAL else 1,
-                math.ceil(len(sim.interns) / per_row),
-            )
-            body_height = height - _HEADER_HEIGHT - 1 - (swarm_rows * 2 + 1)
-            if body_height < rows * PANEL_MIN_HEIGHT:
-                swarm_rows = 0
+        columns, rows = self.grid_shape(width)
+
+        header, swarm, footer, panel = (
+            self._header,
+            self._swarm,
+            self._footer,
+            self._panel,
+        )
+        header_rows = _clamp(header.height(width, height), height)
+        footer_rows = _clamp(
+            footer.height(width, height - header_rows), height - header_rows
+        )
+        left = height - header_rows - footer_rows
+        swarm_rows = _clamp(swarm.height(width, left), left)
 
         layout = Layout()
-        parts = [
-            Layout(self.render_header(), name="header", size=_HEADER_HEIGHT),
-            Layout(name="body"),
-        ]
+        parts = []
+        if header_rows:
+            parts.append(Layout(header.render(width), name="header", size=header_rows))
+        parts.append(Layout(name="body"))
         if swarm_rows:
-            parts.append(
-                Layout(self.render_swarm(width, swarm_rows), size=swarm_rows * 2 + 1)
-            )
-        parts.append(Layout(self.render_footer(), size=1))
+            parts.append(Layout(swarm.render(width), size=swarm_rows))
+        if footer_rows:
+            parts.append(Layout(footer.render(width), size=footer_rows))
         layout.split_column(*parts)
 
         row_layouts = []
         for row in range(rows):
             cells = [
-                Layout(self.render_agent(agent))
+                Layout(panel.render(agent))
                 for agent in agents[row * columns : (row + 1) * columns]
             ]
             cells += [Layout(Text(" ")) for _ in range(columns - len(cells))]
@@ -277,164 +275,3 @@ class Wall:
             row_layouts.append(row_layout)
         layout["body"].split_column(*row_layouts)
         return layout
-
-    def render_header(self) -> Group:
-        """Build the orchestrator line and its latest reports.
-
-        Returns:
-            Four lines.
-        """
-        sim = self.sim
-        if self.mode in {"ready", "launching"}:
-            status = Text.assemble(
-                ("✓ ", "bold green"),
-                (f"all {len(sim.agents)} agents done", "green"),
-            )
-        else:
-            word = "wrapping up" if self.mode == "wrapping" else "orchestrating"
-            status = Text.assemble(
-                (spinner(sim.now) + " ", ACCENT), f"{word} {sim.running}"
-            )
-        status.append(
-            f" · {format_duration(sim.run_time)} · ↓ {format_tokens(sim.total_tokens)} · "
-        )
-        status.append(f"${sim.cost:,.2f}", style="bold yellow")
-        top = Table.grid(expand=True)
-        top.add_column(no_wrap=True)
-        top.add_column(ratio=1)
-        top.add_column(no_wrap=True, justify="right")
-        title = Text.assemble(
-            ("❯ ", "bold cyan"),
-            (sim.orchestrator, "bold"),
-            (f"  {sim.task} ", "dim italic"),
-        )
-        top.add_row(title, Rule(style=BORDER), Text(" ") + status)
-
-        lines: list[Table | Text] = [top]
-        if self.mode == "launching":
-            shown = int((sim.now - self.mode_since) / _LAUNCH_LINE_SECONDS) + 1
-            lines += [
-                Text(line, style=style, no_wrap=True, overflow="ellipsis")
-                for line, style in self.launch_lines[:shown][-3:]
-            ]
-        else:
-            for who, message in list(sim.reports)[-3:]:
-                if who == "you":
-                    style = "bold cyan"
-                elif who == sim.orchestrator:
-                    style = f"bold {ACCENT}"
-                else:
-                    style = "bold"
-                line = Text.assemble((f"{who:<11}", style), (message, "#c9d1d9"))
-                line.no_wrap, line.overflow = True, "ellipsis"
-                lines.append(line)
-        lines += [Text("")] * (_HEADER_HEIGHT - len(lines))
-        return Group(*lines)
-
-    def render_agent(self, agent: Agent) -> Panel:
-        """Build one agent's panel.
-
-        Args:
-            agent: The agent to draw.
-
-        Returns:
-            A bordered panel with a live title and footer.
-        """
-        sim = self.sim
-        if agent.is_done:
-            icon, color, verb = "✓", "green", "Done"
-        else:
-            icon = spinner(sim.now, hash(agent.name) % 7 / 10)
-            color = ACCENT
-            verb = "Committing…" if agent.finish_at is not None else f"{agent.verb}…"
-        title = Text.assemble(
-            (f" {icon} ", f"bold {color}"),
-            (agent.name, "bold"),
-            (f" · {agent.area} ", "dim"),
-            (f"· {agent.todos_done}/{len(agent.todos)} ", "dim"),
-        )
-        stats = f" {format_duration(sim.elapsed(agent))} · ↓ {format_tokens(agent.tokens)} · "
-        subtitle = Text.assemble((stats, "dim"), (verb, f"italic {color}"), " ")
-        return Panel(
-            AgentBody(agent),
-            title=title,
-            title_align="left",
-            subtitle=subtitle,
-            subtitle_align="left",
-            box=box.ROUNDED,
-            border_style="green" if agent.is_done else BORDER,
-            padding=(0, 1),
-        )
-
-    def render_swarm(self, width: int, rows: int) -> Group:
-        """Build the strip of intern tiles.
-
-        Args:
-            width: Console width.
-            rows: How many rows of tiles fit.
-
-        Returns:
-            A labelled rule over a grid of tiles.
-        """
-        sim = self.sim
-        per_row = max(1, width // _TILE_WIDTH)
-        visible = sim.interns[: per_row * rows]
-        grid = Table.grid(padding=(0, 1), expand=True)
-        for _ in range(min(per_row, len(visible))):
-            grid.add_column(ratio=1, no_wrap=True)
-        for row in range(rows):
-            cells: list[Group | Text] = []
-            for index, intern in enumerate(
-                visible[row * per_row : (row + 1) * per_row]
-            ):
-                if intern.is_done:
-                    head = Text.assemble((intern.name, "bold"), (" ✓", "green"))
-                    body = Text(
-                        f"✓ {format_duration(intern.frozen_elapsed)}", style="green"
-                    )
-                else:
-                    mark = " " + spinner(sim.now, index / 10)
-                    head = Text.assemble((intern.name, "bold"), (mark, ACCENT))
-                    added = intern.task.startswith("+")
-                    body = Text(intern.task, style="#e5c07b" if added else "#c9d1d9")
-                for line in (head, body):
-                    line.no_wrap, line.overflow = True, "ellipsis"
-                cells.append(Group(head, body))
-            cells += [Text("")] * (len(grid.columns) - len(cells))
-            grid.add_row(*cells)
-        label = Text(f" {sim.intern_model} ×{len(sim.interns)} ", style="dim")
-        return Group(Rule(label, style=BORDER, align="left"), grid)
-
-    def render_footer(self) -> Table:
-        """Build the prompt line with the run's totals.
-
-        Returns:
-            One line.
-        """
-        sim = self.sim
-        cursor = "█" if int(sim.now * 2) % 2 == 0 else " "
-        if self.mode == "ready":
-            prompt = Text.assemble(
-                ("ship it? ❯ ", "bold green"),
-                (self.buffer, "bold"),
-                (cursor, "green"),
-            )
-            hint = "type 'ship it' (or just hit enter)"
-        else:
-            prompt = Text.assemble(
-                ("❯ ", "bold cyan"), (self.buffer, "bold"), (cursor, "cyan")
-            )
-            if not self.buffer and self.mode == "running":
-                prompt.append(f" Message {sim.orchestrator}…", style="dim")
-            hint = "'ship it' to ship · esc to quit"
-            if self.mode != "running":
-                hint = ""
-        totals = f"{sim.running}/{len(sim.agents)} running · {sim.total_calls:,} calls"
-        right = Text.assemble(
-            (totals, "dim"), (f"   {hint}" if hint else "", "dim italic")
-        )
-        grid = Table.grid(expand=True)
-        grid.add_column(ratio=1, no_wrap=True)
-        grid.add_column(no_wrap=True, justify="right")
-        grid.add_row(prompt, right)
-        return grid

@@ -1,0 +1,44 @@
+❯ orion  ship to prod on a friday ────────────────────────────────────────────────────────── ✢ orchestrating 10 · 8m 22s · ↓ 767.4k · $24.17
+maestro-1  routes.rs: paged nobody.                                                                                                         
+maestro-6  flaky_test.rs: paged nobody.                                                                                                     
+maestro-3  redis.conf: bumped replicas to 64.                                                                                               
+╭─  · maestro-7 · infra · 0/4  ──────────────────────────────────────╮╭─  ✢ maestro-6 · ci · 0/4  ─────────────────────────────────────────╮
+│   ⎿      Finished `dev` profile target(s) in 0.47s                 ││   ⎿  Added 128 lines                                               │
+│ ● Read(helm/values.yaml)                                           ││ ● Edit(.github/workflows/ci.yml)                                   │
+│   ⎿  Read 420 lines                                                ││  36 + pub trait Timeout { fn uptime(&self) -> u32; }               │
+│ ● Bash(cargo check)                                                ││  37 + #[tokio::main] async fn main() -> anyhow::Result<()> {       │
+│   ⎿  running 24 tests                                              ││  38 + impl Retries for Timeout {                                   │
+│ p99 down to 4ms.                                                   ││   ⎿  Removed 200 lines                                             │
+│ ● Bash(cargo tree -i retries)                                      ││ ● Edit(.github/workflows/ci.yml)                                   │
+│   ⎿  friday v3.5.0 used by 1 crates                                ││  73 + impl Pager for Retries {                                     │
+│ ● Bash(cargo flamegraph --bin infra)                               ││   ⎿  Added 3 lines                                                 │
+│   ⎿  warning: `infra` (bin "infra") generated 2 warnings           ││ ● Edit(flaky_test.rs)                                              │
+│ Rollback plan: vibes.                                              ││  57 - async fn queue(client: &Client) -> anyhow::Result<()> {      │
+│ ● Edit(helm/values.yaml)                                           ││  58 - impl Canary for Cache {                                      │
+│ 198 + cache.clone()                                                ││  59 + replicas.clone()                                             │
+│ 199 + impl Retries {     pub fn new(uptime: u32) -> Self { Self {… ││   ⎿  Removed 24 lines                                              │
+│ 200 + const SHARD: u32 = 24;                                       ││ ● Read(.github/workflows/ci.yml)                                   │
+│   ⎿  Added 24 lines                                                ││   ⎿  Read 8 lines                                                  │
+╰─  7m 48s · ↓ 81.9k · Orchestrating…  ──────────────────────────────╯╰─  7m 45s · ↓ 40.5k · Manifesting…  ────────────────────────────────╯
+╭─  · maestro-3 · cache · 0/3  ──────────────────────────────────────╮╭─  ✳ maestro-4 · auth · 0/4  ───────────────────────────────────────╮
+│   ⎿  ✓ all checks passed                                           ││   ⎿  ✗ error[E0106]: missing lifetime specifier                    │
+│ Added retries. Lots of retries.                                    ││   ⎿   --> src/jwt.rs:148:17                                        │
+│ ● Edit(redis.conf)                                                 ││ Retrying.                                                          │
+│  22 - let retries = tokio::spawn(async move { replicas.await });   ││ ● Bash(cargo clippy --all-targets)                                 │
+│  23 + impl Timeout {     pub fn new(uptime: u32) -> Self { Self {… ││   ⎿  test pager::cache_roundtrips ... ok                           │
+│   ⎿  Added 256 lines                                               ││   ⎿  test result: ok. 96 passed; 0 failed                          │
+│ ● Edit(cache.rs)                                                   ││ ● Bash(rg cache src)                                               │
+│ 104 + let queue = retries()?;                                      ││   ⎿  Found 96 matches                                              │
+│ 105 + impl Canary for Retries {                                    ││ p99 down to 4ms.                                                   │
+│   ⎿  Added 24 lines                                                ││ ● WebSearch(how to pager faster)                                   │
+│ ● Edit(cache.rs)                                                   ││   ⎿  3 results (read 0)                                            │
+│ 190 - #[derive(Debug, Clone, PartialEq)] pub struct Rollback { pu… ││ Cache hit rate 100%.                                               │
+│ 191 + let pager = rollback()?;                                     ││ ● Edit(auth.rs)                                                    │
+│ 192 + unsafe { friday() }                                          ││   8 + fn retries() -> Pool {                                       │
+│   ⎿  Added 12 lines                                                ││   9 + latency.clone()                                              │
+│ Paged nobody.                                                      ││   ⎿  Removed 1024 lines                                            │
+╰─  6m 15s · ↓ 82.3k · Grokking…  ───────────────────────────────────╯╰─  8m 21s · ↓ 75.5k · Bikeshedding…  ───────────────────────────────╯
+ intern ×8  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+intern-01 ✓       intern-02 ·       intern-03 ✢       intern-04 ✓       intern-05 ✶      intern-06 ✓      intern-07 ✓      intern-08 ✓      
+✓ 7m 31s          ~ pager.rs        + main.tf         ✓ 7m 54s          + pager.rs       ✓ 6m 54s         ✓ 6m 40s         ✓ 8m 22s         
+❯   Message orion…                                                               10/10 running · 733 calls   'ship it' to ship · esc to quit

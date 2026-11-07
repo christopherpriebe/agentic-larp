@@ -11,8 +11,8 @@ from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
+from agentic_larp._draw import ACCENT
 from agentic_larp._flow import END, ScreenStage, Session
-from agentic_larp._wall import ACCENT
 from agentic_larp.apps._base import app_registry
 
 if sys.version_info >= (3, 12):
@@ -22,7 +22,6 @@ else:
 
 PLAN_SECONDS = 2.0
 _PLAN_COLUMN_WIDTH = 30
-_HEADER_ROWS = 4
 _AUTO_SHIP_DELAY = 2.5
 _LAUNCH_SECONDS = 3.2
 _UNKNOWN_APP = 2
@@ -89,7 +88,9 @@ class PlanStage(ScreenStage):
         """
         sim = self.wall.sim
         width, height = self.wall.console.size
-        body = max(1, height - _HEADER_ROWS - 2)
+        header, header_rows = self.wall.draw_header()
+        footer, footer_rows = self.wall.draw_footer(header_rows)
+        body = max(1, height - header_rows - footer_rows - 1)
         count = len(sim.agents)
         most = max(len(agent.todos) for agent in sim.agents)
         columns = 1
@@ -121,12 +122,13 @@ class PlanStage(ScreenStage):
             ("TodoWrite", "bold"),
             (f"({sim.orchestrator}: {count} agents)", "dim"),
         )
+        parts = [Layout(Group(heading, grid))]
+        if header_rows:
+            parts.insert(0, Layout(header, size=header_rows))
+        if footer_rows:
+            parts.append(Layout(footer, size=footer_rows))
         layout = Layout()
-        layout.split_column(
-            Layout(self.wall.render_header(), size=_HEADER_ROWS),
-            Layout(Group(heading, grid)),
-            Layout(self.wall.render_footer(), size=1),
-        )
+        layout.split_column(*parts)
         return layout
 
 
@@ -141,7 +143,7 @@ class WorkStage(ScreenStage):
         sim = self.wall.sim
         if sim.is_converged:
             done = f"all {len(sim.agents)} agents done. ready to ship."
-            sim.reports.append((sim.orchestrator, done))
+            sim.report(sim.orchestrator, done)
             self.finish("ready")
             return
         auto = self.session.auto
@@ -156,7 +158,7 @@ class WorkStage(ScreenStage):
             text: The line.
         """
         sim = self.wall.sim
-        sim.reports.append(("you", text))
+        sim.report("you", text)
         sim.ship()
         self.finish()
 
@@ -177,7 +179,7 @@ class WrapStage(ScreenStage):
         sim = self.wall.sim
         if sim.is_all_done:
             done = f"all {len(sim.agents)} agents done. ready to ship."
-            sim.reports.append((sim.orchestrator, done))
+            sim.report(sim.orchestrator, done)
             self.finish()
 
 
@@ -198,6 +200,7 @@ class ReadyStage(ScreenStage):
     @override
     def on_empty(self) -> None:
         """Ship."""
+        self.wall.sim.start_ship()
         self.finish()
 
     @override
@@ -207,7 +210,8 @@ class ReadyStage(ScreenStage):
         Args:
             text: The line.
         """
-        self.wall.sim.reports.append(("you", text))
+        self.wall.sim.report("you", text)
+        self.wall.sim.start_ship()
         self.finish()
 
 

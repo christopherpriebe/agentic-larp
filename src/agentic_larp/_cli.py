@@ -11,6 +11,7 @@ from typing import cast
 from rich.console import Console
 from rich.markup import escape
 
+from agentic_larp._draw import PANEL_MIN_HEIGHT
 from agentic_larp._errors import GrammarError, LarpError
 from agentic_larp._flow import FLOW, Session, run_flow
 from agentic_larp._grid import Grid
@@ -27,7 +28,7 @@ from agentic_larp._policies import ChoicePolicy, policy_registry
 from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import RunMode, Sim, SwarmSettings
 from agentic_larp._stages import LaunchStage, describe_unknown_app
-from agentic_larp._wall import PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH
+from agentic_larp._wall import PANEL_MIN_WIDTH
 from agentic_larp.apps import DESCRIPTIONS, App, app_registry
 from agentic_larp.meltdown import check_ending
 
