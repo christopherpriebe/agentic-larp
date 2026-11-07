@@ -1,5 +1,6 @@
 [pack]
 key = "clipfarm"
+extends = "typescript"
 task = "clip my podcast into shorts"
 keywords = [
   "podcast", "podcasts", "clips", "clipfarm", "shorts",
@@ -21,6 +22,24 @@ distribution = ["post_queue.ts", "link_in_bio.md"]
 word = [
   "clip", "mindset", "hook", "caption", "episode", "views", "short", "founder", "grind", "podcast", "crazy", "banger",
 ]
+quip = [
+  "Extracted 912 clips. One idea.",
+  "Every clip starts with 'so'.",
+  "Captions now one word at a time.",
+  "Guest bio: 'founder' (of the podcast).",
+  "Added fire emoji. Retention up 0.1%.",
+  "Waveform is two guys saying 100%.",
+  "Pending payout: $0.40.",
+  "Link in bio.",
+]
+final = [
+  "912 clips shipped.",
+  "Views: pending.",
+  "Full episode: 31 views.",
+  "Unique ideas: 1.",
+]
+
+[extend]
 code = [
   "const #word# = await extract(#word#);",
   "clips.push(clip(0, 4)); // same four seconds",
@@ -37,20 +56,4 @@ command = [
   "yt-dlp episode_214",
   "git commit -am 'more clips'",
   "python chop.py --count 912",
-]
-quip = [
-  "Extracted 912 clips. One idea.",
-  "Every clip starts with 'so'.",
-  "Captions now one word at a time.",
-  "Guest bio: 'founder' (of the podcast).",
-  "Added fire emoji. Retention up 0.1%.",
-  "Waveform is two guys saying 100%.",
-  "Pending payout: $0.40.",
-  "Link in bio.",
-]
-final = [
-  "912 clips shipped.",
-  "Views: pending.",
-  "Full episode: 31 views.",
-  "Unique ideas: 1.",
 ]

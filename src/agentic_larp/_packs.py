@@ -3,7 +3,7 @@
 import os
 import random
 import tomllib
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
@@ -29,6 +29,7 @@ _BUILTIN_PACKS = (
     "clipfarm",
     "matchmaker",
 )
+_BUILTIN_TOOLCHAINS = ("cpp", "typescript", "python", "rust")
 _DEFAULT_APP = "deploy"
 _RESERVED_KEY = "generic"
 _SMOKE_ACTIONS = 25
@@ -48,6 +49,11 @@ class Scenario:
         app: Name of the app launched after shipping.
         grammar: Everything the agents say and do, as rules.
         area_rules: Per-area rules that replace same-named rules in ``grammar``.
+        abstract: Whether this is a toolchain to extend, not a pack to run.
+        parents: Keys of the packs this one extends, in order.
+        layer: Every rule this pack and its ancestors set or extended, so a
+            child can layer them over its own base; rules only inherited from
+            the base grammar are left out.
     """
 
     key: str
@@ -57,6 +63,9 @@ class Scenario:
     app: str
     grammar: Grammar
     area_rules: dict[str, Grammar] = field(default_factory=dict)
+    abstract: bool = False
+    parents: tuple[str, ...] = ()
+    layer: Grammar = field(default_factory=lambda: Grammar({}))
 
     def grammar_for(self, area: str) -> Grammar:
         """Return the grammar an agent working on an area uses.
@@ -71,8 +80,8 @@ class Scenario:
         return self.grammar if overrides is None else self.grammar.merge(overrides)
 
 
-def _read_resource(name: str) -> str:
-    return resources.files("agentic_larp").joinpath("packs", name).read_text("utf-8")
+def _read_resource(*parts: str) -> str:
+    return resources.files("agentic_larp").joinpath("packs", *parts).read_text("utf-8")
 
 
 def base_grammar() -> Grammar:
@@ -123,53 +132,131 @@ def _parse_areas(
     return areas, overrides
 
 
-def _parse_scenario(text: str, label: str, base: Grammar) -> Scenario:
+def _extends(label: str, pack: dict[str, object]) -> tuple[str, ...]:
+    raw = pack.get("extends", [])
+    names = [raw] if isinstance(raw, str) else raw
+    if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+        raise _fail(label, "[pack] extends must be a pack name or a list of names")
+    return tuple(str(name) for name in names)
+
+
+def _resolve_grammar(
+    data: dict[str, object], base: Grammar, parents: list[Scenario]
+) -> tuple[Grammar, Grammar]:
+    # Returns the pack's (layer, resolved grammar).
+    inherited = Grammar({})
+    for parent in parents:
+        inherited = inherited.merge(parent.layer)
+    rules, extend = data.get("rules", {}), data.get("extend", {})
+    if not isinstance(rules, dict):
+        message = "[rules] must be a table"
+        raise GrammarError(message)
+    if not isinstance(extend, dict):
+        message = "[extend] must be a table"
+        raise GrammarError(message)
+    layer = inherited.merge(Grammar.from_mapping(rules))
+    resolved = base.merge(layer)
+    for name, added in Grammar.from_mapping(extend).rules.items():
+        grown = Grammar({name: (*resolved.rules.get(name, ()), *added)})
+        layer, resolved = layer.merge(grown), resolved.merge(grown)
+    return layer, resolved
+
+
+def _read_pack(
+    label: str, text: str
+) -> tuple[dict[str, object], dict[str, object], str]:
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as err:
         raise _fail(label, f"not valid TOML ({err})") from err
-    pack = data.get("pack")
-    if not isinstance(pack, dict) or not isinstance(pack.get("key"), str):
+    pack: object = data.get("pack")
+    key = pack.get("key") if isinstance(pack, dict) else None
+    if not isinstance(pack, dict) or not isinstance(key, str):
         raise _fail(label, "missing [pack] key")
-    if not isinstance(pack.get("task"), str):
-        raise _fail(label, "missing [pack] task")
-    raw_areas = data.get("areas")
-    if pack["key"] == _RESERVED_KEY:
+    if key == _RESERVED_KEY:
         raise _fail(
             label, f"{_RESERVED_KEY!r} is reserved for the built-in generic pack"
         )
-    if not isinstance(pack.get("app", _DEFAULT_APP), str):
-        raise _fail(label, "[pack] app must be text")
-    if not isinstance(raw_areas, dict) or not raw_areas:
-        raise _fail(label, "no [areas] (give at least one area with files)")
+    if not isinstance(pack.get("abstract", False), bool):
+        raise _fail(label, "[pack] abstract must be true or false")
+    for field_name in ("task", "app"):
+        if not isinstance(pack.get(field_name, ""), str):
+            raise _fail(label, f"[pack] {field_name} must be text")
+    return dict(data), dict(pack), key
+
+
+def _parse_scenario(
+    text: str, label: str, base: Grammar, packs: Mapping[str, Scenario]
+) -> Scenario:
+    data, pack, key = _read_pack(label, text)
+    is_abstract = bool(pack.get("abstract", False))
+    names = _extends(label, pack)
+    parents = [_parent(label, name, packs) for name in names]
+    task = str(pack.get("task", "")) or _first_inherited(parents, "task")
+    if not task and not is_abstract:
+        raise _fail(label, "missing [pack] task")
+    app = str(pack.get("app", "")) or _first_inherited(parents, "app")
     try:
-        areas, overrides = _parse_areas(label, raw_areas)
-        extra = data.get("rules", {})
-        if not isinstance(extra, dict):
-            raise _fail(label, "[rules] must be a table")
-        grammar = base.merge(Grammar.from_mapping(extra))
+        areas, overrides = _own_areas(label, data.get("areas"))
+        layer, grammar = _resolve_grammar(data, base, parents)
     except GrammarError as err:
         if str(err).startswith(f"{label}: "):
             raise
         raise _fail(label, str(err)) from err
+    donor = _last_with_areas(parents)
+    if not areas and donor is not None:
+        areas, overrides = dict(donor.areas), dict(donor.area_rules)
+    if not areas and not is_abstract:
+        raise _fail(label, "no [areas] (give at least one area with files)")
     keywords = _text_list(label, "[pack] keywords", pack.get("keywords", []))
     if not all(keyword.strip() for keyword in keywords):
         raise _fail(label, "[pack] keywords has an empty keyword")
-    keywords = tuple(keyword.strip() for keyword in keywords)
     scenario = Scenario(
-        key=pack["key"],
-        task=pack["task"],
-        keywords=keywords,
+        key=key,
+        task=task,
+        keywords=tuple(keyword.strip() for keyword in keywords),
         areas=areas,
-        app=str(pack.get("app", _DEFAULT_APP)),
+        app=app or ("" if is_abstract else _DEFAULT_APP),
         grammar=grammar,
         area_rules=overrides,
+        abstract=is_abstract,
+        parents=names,
+        layer=layer,
     )
-    try:
-        _verify(scenario)
-    except GrammarError as err:
-        raise _fail(label, str(err)) from err
+    if not is_abstract:
+        try:
+            _verify(scenario)
+        except GrammarError as err:
+            raise _fail(label, str(err)) from err
     return scenario
+
+
+def _parent(label: str, name: str, packs: Mapping[str, Scenario]) -> Scenario:
+    if name not in packs:
+        raise _fail(label, f"unknown parent {name!r}")
+    return packs[name]
+
+
+def _own_areas(
+    label: str, raw: object
+) -> tuple[dict[str, tuple[str, ...]], dict[str, Grammar]]:
+    if raw is None:
+        return {}, {}
+    if not isinstance(raw, dict):
+        raise _fail(label, "[areas] must be a table")
+    return _parse_areas(label, raw)
+
+
+def _first_inherited(parents: list[Scenario], attribute: str) -> str:
+    for parent in reversed(parents):
+        value = getattr(parent, attribute)
+        if value:
+            return str(value)
+    return ""
+
+
+def _last_with_areas(parents: list[Scenario]) -> Scenario | None:
+    return next((parent for parent in reversed(parents) if parent.areas), None)
 
 
 def _verify(scenario: Scenario) -> None:
@@ -186,13 +273,20 @@ def _verify(scenario: Scenario) -> None:
                 grammar.expand(symbol, rng, bindings)
 
 
-def load_scenario(path: Path, base: Grammar | None = None) -> Scenario:
+def load_scenario(
+    path: Path,
+    base: Grammar | None = None,
+    *,
+    packs: Mapping[str, Scenario] | None = None,
+) -> Scenario:
     """Read a pack file.
 
     Args:
         path: A ``.toml`` pack.
         base: Grammar the pack's rules are layered over; defaults to
             :func:`base_grammar`.
+        packs: Packs its ``extends`` names resolve against; defaults to every
+            built-in toolchain and pack.
 
     Returns:
         The scenario.
@@ -206,7 +300,34 @@ def load_scenario(path: Path, base: Grammar | None = None) -> Scenario:
     except (OSError, UnicodeDecodeError) as err:
         message = f"{path}: cannot read ({err})"
         raise GrammarError(message) from err
-    return _parse_scenario(text, str(path), base or base_grammar())
+    known = {**TOOLCHAINS, **SCENARIOS} if packs is None else packs
+    return _parse_scenario(text, str(path), base or base_grammar(), known)
+
+
+def _pack_files(paths: Iterable[Path]) -> list[Path]:
+    files: list[Path] = []
+    for path in paths:
+        if path.is_dir():
+            files.extend(sorted(path.glob("*.toml")))
+        elif path.is_file() and path.suffix == ".toml":
+            files.append(path)
+    return files
+
+
+def _peek(file: Path) -> tuple[str, tuple[str, ...]] | None:
+    """Return a pack file's (key, extends), or None if it can't be read yet."""
+    try:
+        pack = tomllib.loads(file.read_text(encoding="utf-8")).get("pack")
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return None
+    key = pack.get("key") if isinstance(pack, dict) else None
+    if not isinstance(pack, dict) or not isinstance(key, str):
+        return None
+    raw = pack.get("extends", [])
+    names = [raw] if isinstance(raw, str) else raw
+    if not isinstance(names, list):
+        return None
+    return key, tuple(name for name in names if isinstance(name, str))
 
 
 def discover_scenarios(
@@ -216,37 +337,77 @@ def discover_scenarios(
 ) -> dict[str, Scenario]:
     """Load packs from files and directories.
 
+    Packs are loaded parents first, whatever the file order; parents come
+    from the same discovery or from the built-ins. Abstract packs are
+    returned too.
+
     Args:
         paths: Pack files, or directories whose ``*.toml`` files are loaded in
             sorted order. Missing paths are skipped; later packs replace
             earlier ones with the same key.
-        on_error: Called with the error for each broken file, which is then
-            skipped. By default the error is raised.
+        on_error: Called with the error for each broken file (or inheritance
+            cycle), which is then skipped. By default a :class:`GrammarError`
+            is raised instead.
 
     Returns:
         Packs by key.
-
-    Raises:
-        GrammarError: If a file is broken and ``on_error`` is not given.
     """
     base = base_grammar()
     found: dict[str, Scenario] = {}
-    for path in paths:
-        if path.is_dir():
-            files = sorted(path.glob("*.toml"))
-        elif path.is_file() and path.suffix == ".toml":
-            files = [path]
+    pending: dict[str, tuple[Path, tuple[str, ...]]] = {}
+    unordered: list[Path] = []
+    for file in _pack_files(paths):
+        peeked = _peek(file)
+        if peeked is None:
+            unordered.append(file)
         else:
-            continue
-        for file in files:
-            try:
-                scenario = load_scenario(file, base)
-            except GrammarError as err:
-                if on_error is None:
-                    raise
-                on_error(err)
-                continue
-            found[scenario.key] = scenario
+            pending[peeked[0]] = (file, peeked[1])
+
+    failed: set[str] = set()
+
+    def report(error: GrammarError) -> None:
+        if on_error is None:
+            raise error
+        on_error(error)
+
+    def load(file: Path) -> None:
+        known = {**TOOLCHAINS, **SCENARIOS, **found}
+        scenario = load_scenario(file, base, packs=known)
+        found[scenario.key] = scenario
+
+    def visit(key: str, stack: tuple[str, ...]) -> None:
+        if key in found or key in failed:
+            return
+        file, parents = pending[key]
+        if key in stack:
+            circle = " -> ".join(pending[k][0].name for k in (*stack, key))
+            failed.update((*stack, key))
+            report(GrammarError(f"{file}: inheritance cycle ({circle})"))
+            return
+        for parent in parents:
+            if parent != key and parent in pending:
+                visit(parent, (*stack, key))
+        if key in failed:
+            return
+        broken = next((parent for parent in parents if parent in failed), None)
+        if broken is not None:
+            failed.add(key)
+            report(GrammarError(f"{file}: parent {broken!r} failed to load"))
+            return
+        try:
+            load(file)
+        except GrammarError as err:
+            failed.add(key)
+            report(err)
+
+    for file in unordered:
+        try:
+            load(file)
+        except GrammarError as err:
+            failed.add(file.stem)  # its key is unknown, so a child may name the file
+            report(err)
+    for key in list(pending):
+        visit(key, ())
     return found
 
 
@@ -265,13 +426,18 @@ def default_pack_dirs() -> list[Path]:
     return [root / "agentic-larp" / "packs"]
 
 
-def _load_builtins() -> dict[str, Scenario]:
+def _load_builtins() -> tuple[dict[str, Scenario], dict[str, Scenario]]:
     base = base_grammar()
-    scenarios = (
-        _parse_scenario(_read_resource(f"{name}.toml"), f"{name}.toml", base)
-        for name in _BUILTIN_PACKS
-    )
-    return {scenario.key: scenario for scenario in scenarios}
+    toolchains: dict[str, Scenario] = {}
+    for name in _BUILTIN_TOOLCHAINS:
+        text = _read_resource("toolchains", f"{name}.toml")
+        toolchains[name] = _parse_scenario(text, f"toolchains/{name}.toml", base, {})
+    scenarios: dict[str, Scenario] = {}
+    for name in _BUILTIN_PACKS:
+        text = _read_resource(f"{name}.toml")
+        scenario = _parse_scenario(text, f"{name}.toml", base, toolchains)
+        scenarios[scenario.key] = scenario
+    return toolchains, scenarios
 
 
-SCENARIOS: dict[str, Scenario] = _load_builtins()
+TOOLCHAINS, SCENARIOS = _load_builtins()

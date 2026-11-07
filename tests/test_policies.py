@@ -4,6 +4,7 @@ import random
 from collections import Counter, deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +17,7 @@ from agentic_larp import (
     Sim,
     SwarmSettings,
     VariedPolicy,
+    load_scenario,
     main,
     pick_scenario,
     policy_registry,
@@ -120,10 +122,28 @@ def test_varied_expansion_avoids_back_to_back_lines() -> None:
     assert all(a != b for a, b in itertools.pairwise(lines))
 
 
-def streamed_repeats(policy: Callable[[], ChoicePolicy]) -> int:
-    """Count back-to-back identical diff lines across everything the agents wrote."""
+TINY_PACK = """
+[pack]
+key = "tiny"
+task = "write three lines"
+
+[areas]
+core = ["core.py"]
+
+[rules]
+code = ["a = 1", "b = 2", "c = 3"]
+"""
+
+
+def streamed_repeats(policy: Callable[[], ChoicePolicy], directory: Path) -> int:
+    """Count back-to-back identical diff lines across everything the agents wrote.
+
+    The pack has three code lines, so a plain random draw repeats often.
+    """
+    path = directory / "tiny.toml"
+    path.write_text(TINY_PACK, encoding="utf-8")
     settings = SwarmSettings(agents=8, interns=0, policy=policy)
-    sim = Sim([pick_scenario(None, "dropship")], settings, random.Random(12))
+    sim = Sim([load_scenario(path)], settings, random.Random(12))
     for agent in sim.agents:
         # Uncapped, so the log keeps every line the agent writes.
         agent.log = deque(agent.log)
@@ -136,12 +156,12 @@ def streamed_repeats(policy: Callable[[], ChoicePolicy]) -> int:
     )
 
 
-def test_random_agents_sometimes_repeat_a_diff_line() -> None:
-    assert streamed_repeats(RandomPolicy) > 0
+def test_random_agents_sometimes_repeat_a_diff_line(tmp_path: Path) -> None:
+    assert streamed_repeats(RandomPolicy, tmp_path) > 0
 
 
-def test_varied_agents_never_repeat_a_diff_line() -> None:
-    assert streamed_repeats(VariedPolicy) == 0
+def test_varied_agents_never_repeat_a_diff_line(tmp_path: Path) -> None:
+    assert streamed_repeats(VariedPolicy, tmp_path) == 0
 
 
 def test_every_agent_and_intern_gets_its_own_policy() -> None:

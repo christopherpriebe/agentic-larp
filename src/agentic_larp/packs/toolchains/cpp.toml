@@ -1,0 +1,284 @@
+[pack]
+key = "cpp"
+abstract = true
+
+[rules]
+# Phases: build, test, debug get C++-specific tool output; anytime adds shell odds and ends.
+build = [
+  { text = "tool: Bash(#build_command#)\nok: #build_result#", weight = 10 },
+  { text = "tool: Bash(#configure_command#)\nok: #configure_result#", weight = 3 },
+  { text = "tool: Bash(#build_command#)\nfail: ✗ #compile_error#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines\ntool: Bash(#build_command#)\nok: #build_result#", weight = 3 },
+  { text = "tool: Bash(ccache -s)\nnote: #ccache_result#", weight = 1 },
+  { text = "tool: Bash(#dep_command#)\nok: #dep_result#", weight = 1 },
+]
+test = [
+  { text = "tool: Bash(#test_command#)\nok: #test_result#", weight = 80 },
+  { text = "tool: Bash(#test_command#)\nfail: ✗ #test_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #test_result#", weight = 20 },
+]
+debug = [
+  "tool: Bash(#debug_command#)\nnote: #debug_result#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(#debug_command#)\nfail: ✗ #sanitizer_error#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\ndel: #code#\nnote: Added #n# lines\ntool: Bash(#test_command#)\nok: #test_result#",
+  "tool: Bash(#test_command#)\nfail: ✗ #test_fail#\nsay: #recovery#\ntool: Bash(#debug_command#)\nnote: #debug_result#",
+  "tool: Bash(#build_command#)\nfail: ✗ #link_error#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines\ntool: Bash(#build_command#)\nok: #build_result#",
+  "tool: Bash(#analysis_command#)\nnote: #analysis_result#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+]
+anytime = [
+  "tool: Bash(git status --short)\nok: #files_changed# files changed",
+  "tool: Bash(git diff --stat)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(git diff -- #file#)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(git log --oneline -#commits#)\nok: 4a20d69 wip",
+  "tool: Bash(rg #word# src/)\nnote: Found #count# matches",
+  "tool: Bash(rg -n '#word.camel#' include/#area#)\nnote: Found #few# matches",
+  "tool: Bash(fd -e cpp -e hpp #area#)\nnote: #count# files",
+  "tool: Bash(cat CMakeLists.txt)\nnote: Read #n# lines",
+  "tool: Bash(ls build/)\nnote: CMakeCache.txt  compile_commands.json  bin  src  #small# more",
+  "tool: Bash(clang-format -i #file#)\nok: reformatted #file#",
+  "tool: Bash(clang-format --dry-run -Werror #file#)\nfail: ✗ #file#:#line#:#col#: error: code should be clang-formatted",
+  "tool: Bash(wc -l src/#area#/*.cpp)\nnote: #count# total",
+  "#read#",
+  "#delegate#",
+]
+
+build_command = [
+  { text = "#command#", weight = 2 },
+  "cmake --build build -j#jobs#",
+  "cmake --build build -j#jobs#",
+  "cmake --build build --target #area# -j#jobs#",
+  "ninja -C build #area#",
+  "ninja -C build -j#jobs#",
+  "ninja -C build -v #area#",
+  "ninja -C build all",
+  "make -j#jobs#",
+  "make -C build #area# -j#jobs#",
+  "cmake --build build --config Release -j#jobs#",
+  "bazel build //src/#area#:#area#",
+  "cmake --build build-#word# -j#jobs#",
+]
+configure_command = [
+  "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release",
+  "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug",
+  "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo",
+  "cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+  "cmake -S . -B build -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_STANDARD=#std#",
+  "cmake -S . -B build-asan -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -g'",
+  "cmake -S . -B build -DBUILD_TESTING=ON -DENABLE_#area.upper#=ON",
+  "cmake -S . -B build-#word# -G Ninja -DCMAKE_CXX_COMPILER=clang++",
+  "cmake --preset #word#",
+]
+std = ["17", "20", "23"]
+configure_result = [
+  "-- Configuring done (#count#.#frac#s)",
+  "-- Generating done (0.#frac#s)",
+  "-- Build files have been written to: /home/dev/#area#/build",
+  "-- Found GTest: /usr/lib/libgtest.so (found version \"1.14.0\")",
+  "-- The CXX compiler identification is GNU 13.2.0",
+  "-- The CXX compiler identification is Clang 17.0.#few#",
+  "-- Found Threads: TRUE",
+  "CMake Warning at CMakeLists.txt:#line#: policy CMP#policy_no# is not set",
+]
+dep_command = [
+  "conan install . --output-folder=build --build=missing",
+  "vcpkg install #word#",
+  "vcpkg install fmt spdlog gtest",
+  "conan install --requires=#word#/1.#few#.0 -s compiler.cppstd=#std#",
+  "git submodule update --init third_party/#word#",
+]
+dep_result = [
+  "Installing #small#/#count# #word#:x64-linux",
+  "conan install: #count# packages, #few# built from source",
+  "Package #word#/1.#few#.0 installed",
+  "-- Up-to-date: #count# packages (all in third_party/)",
+]
+build_result = [
+  "[ 37%] Building CXX object src/CMakeFiles/#area#.dir/#file#.o",
+  "[ 42%] Building CXX object src/CMakeFiles/#area#.dir/#word#.cpp.o",
+  "[ 68%] Building CXX object tests/CMakeFiles/#area#_test.dir/#word#_test.cpp.o",
+  "[ 90%] Linking CXX static library lib#area#.a",
+  "[100%] Linking CXX executable bin/#area#",
+  "[100%] Built target #area#",
+  "[#progress#] Linking CXX executable bin/#area#",
+  "[#progress#] Building CXX object src/CMakeFiles/#area#.dir/#file#.o",
+  "ninja: no work to do.",
+  "#count# warnings (all in third_party/)",
+  "warning: unused variable '#word#' [-Wunused-variable]",
+  "warning: comparison of integers of different signs [-Wsign-compare]",
+  "warning: declaration of '#word#' shadows a member [-Wshadow]",
+  "#file#:#line#:#col#: warning: unused parameter '#word#' [-Wunused-parameter]",
+  "ccache hit rate #pct#% (link took #few#.#frac#s)",
+  "Built target #area# in #count#.#frac#s",
+]
+ccache_result = [
+  "Cacheable calls: #count# / #count2# (hit rate #pct#%)",
+  "Hits: #count# / #count2# (#pct#.0 %)",
+  "Cache size (GiB): #few#.#frac# / 5.0 (#pct#.0 %)",
+  "Misses: #count# (it was the template)",
+]
+compile_error = [
+  "#file#:#line#:#col#: error: no matching function for call to '#word#(int)'",
+  "#file#:#line#:#col#: error: no matching function for call to '#word.camel#::#word#(std::string&)'",
+  "#file#:#line#:#col#: note: candidate template ignored: constraints not satisfied",
+  "#file#:#line#:#col#: note: candidate template ignored: could not match '#word.camel#<T>' against 'int'",
+  "#file#:#line#:#col#: note: in instantiation of function template specialization 'std::#word#<int>' requested here",
+  "#file#:#line#:#col#: error: use of undeclared identifier '#word#'",
+  "#file#:#line#:#col#: error: expected ';' after expression",
+  "#file#:#line#:#col#: error: static assertion failed: #word# must be trivially copyable",
+  "#file#:#line#:#col#: error: 'std::#word#' has not been declared",
+  "#file#:#line#:#col#: error: invalid operands to binary expression ('#word.camel#' and 'int')",
+  "#file#:#line#:#col#: fatal error: '#word#.hpp' file not found",
+  "#file#:#line#:#col#: error: call to deleted constructor of 'std::unique_ptr<#word.camel#>'",
+  "#count# errors generated. (#count# lines of template backtrace omitted)",
+]
+link_error = [
+  "ld: undefined reference to `#word.camel#::#word#()'",
+  "undefined reference to `#word#(int, char const*)'",
+  "ld: error: undefined symbol: #word.camel#::~#word.camel#()",
+  "ld: multiple definition of `#word#'; #file#.o first defined here",
+  "ODR violation: #word.camel# has different definitions in #file# and #word#.cpp",
+  "collect2: error: ld returned 1 exit status",
+  "clang++: error: linker command failed with exit code 1",
+]
+sanitizer_error = [
+  "==#pid#==ERROR: AddressSanitizer: heap-use-after-free on address 0x60200000001#few#0",
+  "==#pid#==ERROR: AddressSanitizer: heap-buffer-overflow in #word# #file#:#line#",
+  "==#pid#==ERROR: AddressSanitizer: stack-use-after-scope in #word#",
+  "==#pid#==ERROR: LeakSanitizer: detected memory leaks (#count# bytes in #few# allocations)",
+  "#file#:#line#:#col#: runtime error: signed integer overflow: #count# + 2147483647 cannot be represented in type 'int'",
+  "#file#:#line#:#col#: runtime error: member call on null pointer of type '#word.camel#'",
+  "WARNING: ThreadSanitizer: data race (pid=#pid#)",
+  "Segmentation fault (core dumped)",
+  "terminate called after throwing an instance of 'std::bad_alloc'",
+]
+test_command = [
+  { text = "#command#", weight = 2 },
+  "ctest --output-on-failure",
+  "ctest --output-on-failure -j#jobs#",
+  "ctest --test-dir build --output-on-failure -j#jobs#",
+  "ctest -R #area# --output-on-failure",
+  "ctest -R #word# -V",
+  "ctest --rerun-failed --output-on-failure",
+  "./build/bin/#area#_test --gtest_filter=#word.camel#Test.*",
+  "./build/bin/#area#_test --gtest_repeat=#few# --gtest_shuffle",
+  "./build/bin/#area#_test '[#word#]'",
+  "./build/bin/#area#_bench --benchmark_filter=BM_#word.camel#",
+  "valgrind --leak-check=full ./build/bin/#area#_test",
+  "valgrind -q --error-exitcode=1 ./build/bin/#area#",
+]
+test_result = [
+  "[==========] #count# tests from #few# test suites ran. (#ms# ms total)",
+  "[  PASSED  ] #count# tests.",
+  "[       OK ] #word.camel#Test.Works (#ms# ms)",
+  "[       OK ] #word.camel#Test.Handles#word.camel# (#ms# ms)",
+  "100% tests passed, 0 tests failed out of #count#",
+  "Total Test time (real) =   #few#.#frac# sec",
+  "All tests passed (#count# assertions in #count2# test cases)",
+  "BM_#word.camel#/#count#   #count# ns   #count2# ns   #count#000 iterations",
+  "definitely lost: 0 bytes in 0 blocks",
+  "ERROR SUMMARY: 0 errors from 0 contexts",
+  "#count# tests passed (#few# skipped)",
+  "#word.camel#Test.Works ... Passed  #few#.#frac# sec",
+]
+test_fail = [
+  "[  FAILED  ] #word.camel#Test.Works (#ms# ms)",
+  "[  FAILED  ] #few# tests, listed below:",
+  "#file#:#line#: Failure: Expected equality of these values",
+  "#few#% tests passed, #few# tests failed out of #count#",
+  "The following tests FAILED: #few# - #area#_test (Failed)",
+  "REQUIRE( #word# == #count# ) with expansion: #few# == #count#",
+  "test cases: #count# | #few# failed",
+  "definitely lost: #count# bytes in #few# blocks",
+  "#few# tests failed (the flaky one)",
+]
+debug_command = [
+  "gdb -batch -ex bt ./build/bin/#area#",
+  "gdb -batch -ex run -ex bt --args ./build/bin/#area#_test",
+  "gdb -batch -ex 'break #file#:#line#' -ex run ./build/bin/#area#",
+  "lldb -b -o run -o bt ./build/bin/#area#",
+  "valgrind --leak-check=full --show-leak-kinds=all ./build/bin/#area#",
+  "valgrind --tool=memcheck --track-origins=yes ./build/bin/#area#_test",
+  "valgrind --tool=helgrind ./build/bin/#area#",
+  "./build-asan/bin/#area#_test",
+  "perf record -g ./build/bin/#area#",
+  "perf report --stdio | head -#commits#",
+  "perf stat -e cache-misses ./build/bin/#area#",
+]
+debug_result = [
+  "#0  0x00007ffff7a#hex#c in #word#() at #file#:#line#",
+  "#1  0x0000555555#hex#a2 in #word.camel#::#word#() at #file#:#line#",
+  "#2  0x0000555555#hex#f1 in main () at main.cpp:#line#",
+  "definitely lost: 0 bytes in 0 blocks",
+  "All heap blocks were freed -- no leaks are possible",
+  "ERROR SUMMARY: 0 errors from 0 contexts (suppressed: #count# from #few#)",
+  "Program received signal SIGSEGV, Segmentation fault.",
+  "  #few#.#frac#%  #area#  [.] #word.camel#::#word#",
+  "stop reason = signal SIGSEGV, frame #0: #word#() at #file#:#line#",
+  "Performance counter stats: #count#,000 cache-misses (#few#.#small#%)",
+  "root cause: it was the iterator",
+]
+analysis_command = [
+  "clang-tidy -p build #file#",
+  "clang-tidy -p build --checks='modernize-*,bugprone-*' #file#",
+  "clang-tidy -p build --fix --checks=modernize-use-auto #file#",
+  "cppcheck --enable=all --project=build/compile_commands.json",
+  "cppcheck --enable=warning,performance src/#area#",
+  "include-what-you-use -p build #file#",
+  "clang-format -i #file#",
+  "run-clang-tidy -p build -j#jobs#",
+]
+analysis_result = [
+  "#file#:#line#:#col#: warning: use auto when initializing with a cast [modernize-use-auto]",
+  "#file#:#line#:#col#: warning: use '= default' to define a trivial destructor [modernize-use-equals-default]",
+  "#file#:#line#:#col#: warning: narrowing conversion from 'int' to 'char' [bugprone-narrowing-conversions]",
+  "#file#:#line#:#col#: warning: use of a moved-from object '#word#' [bugprone-use-after-move]",
+  "#file#:#line#:#col#: style: The scope of the variable '#word#' can be reduced. [variableScope]",
+  "#file#:#line#:#col#: error: Memory leak: #word# [memleak]",
+  "#file# should add these lines: #include <vector>",
+  "#file# has correct #includes",
+  "#count# warnings generated (#count2# suppressed, all in third_party/)",
+]
+command = [
+  "ninja -C build #area#",
+  "ctest --output-on-failure -j#jobs#",
+  "clang-tidy -p build #file#",
+  "cmake --build build -j#jobs#",
+  "ctest -R #area#",
+  "valgrind --leak-check=full ./build/bin/#area#",
+]
+cpp_ident = ["#word#", "#word#_", "m_#word#", "#word.camel#", "kMax#word.camel#"]
+cpp_type = ["int", "std::size_t", "std::string", "std::vector<#word.camel#>", "std::span<const std::byte>", "std::unique_ptr<#word.camel#>", "std::optional<#word.camel#>", "std::string_view"]
+code = [
+  "#word# = #n#;",
+  "#pragma once",
+  "#include <#word#>",
+  "#include \"#word#.hpp\"",
+  "auto #word# = std::move(#word#);",
+  "constexpr int #word# = #n#;",
+  "constexpr std::size_t k#word.camel# = #n#;",
+  "// TODO: more #word#",
+  "namespace #area# {",
+  "} // namespace #area#",
+  "template <typename T>",
+  "template <std::integral T>",
+  "template <typename T> requires std::copyable<T>",
+  "concept #word.camel# = requires(T t) { t.#word#(); };",
+  "auto #word# = std::make_unique<#word.camel#>();",
+  "auto #word# = std::make_shared<#word.camel#>(#n#);",
+  "std::span<const int> #word#{data, #n#};",
+  "for (auto&& [k, v] : #word#) {",
+  "for (const auto& x : #word# | std::views::filter(is_#word#)) {",
+  "std::ranges::sort(#word#);",
+  "[[nodiscard]] #cpp_type# #word#() const noexcept;",
+  "explicit #word.camel#(#cpp_type# #word#) : #word#_(std::move(#word#)) {}",
+  "~#word.camel#() override = default;",
+  "std::lock_guard lock{mutex_};",
+  "std::optional<#word.camel#> find_#word#(std::string_view key) const;",
+  "co_await #word#.async_read(buf);",
+  "static_assert(sizeof(#word.camel#) == #n#);",
+  "#cpp_type# #word#_{};",
+  "if (auto it = #word#.find(key); it != #word#.end()) {",
+  "return std::nullopt;",
+  "throw std::runtime_error(\"#word# failed\");",
+  "class #word.camel# final : public #word.camel# {",
+  "TEST(#word.camel#Test, Works) {",
+  "EXPECT_EQ(#word#, #n#);",
+  "using #word.camel# = std::variant<int, std::string>;",
+]

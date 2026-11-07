@@ -1,0 +1,118 @@
+[pack]
+key = "python"
+abstract = true
+
+[rules]
+build_command = [
+  { text = "#command#", weight = 2 },
+  "uv sync",
+  "uv sync --all-extras",
+  "uv run python -m #area#",
+  "uv build",
+  "python -m compileall src",
+  "uv run ruff check .",
+  "uv run ruff format .",
+  "uv run mypy src",
+  "uv run ty check",
+  "uv run alembic upgrade head",
+  "uv run uvicorn #area#.main:app --reload",
+  "python -m cProfile -s cumtime src/#file#",
+]
+test_command = [
+  { text = "#command#", weight = 2 },
+  "uv run pytest -q -x",
+  "uv run pytest -q tests/test_#word#.py",
+  "uv run pytest -q -x -k #word#",
+  "uv run pytest --cov=src -q",
+  "pytest -q",
+  "uv run ruff check .",
+  "uv run mypy src",
+]
+build_result = [
+  "Resolved #count# packages in #ms#ms",
+  "Installed #count# packages in #ms#ms",
+  "Successfully built dist/#area#-0.1.0.tar.gz",
+  "Compiling 'src/#word#.py'...",
+  "All checks passed!",
+  "#count# files reformatted, #count# files left unchanged",
+  "Success: no issues found in #count# source files",
+  "INFO  [alembic.runtime.migration] Running upgrade -> #word#, add #word# table",
+  "INFO:     Will watch for changes in these directories: ['/app']\nnote: INFO:     Application startup complete.",
+  "WARNING:  StatReload detected changes in 'src/#file#'. Reloading...",
+  "         #count# function calls in 0.#frac# seconds",
+  "   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\nnote:       #count#    0.#frac#    0.000    0.#frac#    0.000 #file#:#line#(#word#)",
+  "Audited #count# packages in #ms#ms",
+]
+result = [
+  "#count# passed in 0.#frac#s",
+  "#count# passed, #few# skipped in #count#.#frac#s",
+  "...................... [100%]",
+  ".....s................ [100%]",
+  "All checks passed!",
+  "Success: no issues found in #count# source files",
+  "TOTAL    #count#   #few#   #pct#%",
+  "exit 0",
+  "✓ all checks passed",
+]
+py_fail = [
+  "FAILED tests/test_#word#.py::test_#word# - assert #count# == #count2#",
+  "E   AssertionError: assert {'#word#': #count#} == {'#word#': #count2#}\nnote: E     Differing items:\nnote: E     {'#word#': #count#} != {'#word#': #count2#}",
+  "E   AttributeError: 'NoneType' object has no attribute '#word#'",
+  "E   KeyError: '#word#'",
+  "E   TypeError: #word#() missing 1 required positional argument: '#word#'",
+  "src/#file#:#line#: error: Argument 1 to \"#word#\" has incompatible type \"str\"; expected \"int\"  [arg-type]",
+  "src/#file#:#line#: error: Incompatible return value type (got \"None\", expected \"#word.camel#\")  [return-value]",
+  "src/#file#:#line#:#col#: F401 `#word#` imported but unused",
+  "src/#file#:#line#:#col#: E501 Line too long (#line# > 88)",
+  "sqlalchemy.exc.IntegrityError: NOT NULL constraint failed: #word#.id",
+  "E   ModuleNotFoundError: No module named '#word#'",
+]
+test = [
+  { text = "tool: Bash(#test_command#)\nok: #result#", weight = 85 },
+  { text = "tool: Bash(#test_command#)\nfail: ✗ #py_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#", weight = 15 },
+]
+debug = [
+  "tool: Bash(#test_command#)\nfail: ✗ #py_fail#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(#test_command#)\nfail: ✗ #py_fail#\nsay: #recovery#\ntool: Bash(#test_command#)\nok: #result#",
+  "tool: Bash(uv run pytest -x --pdb)\nfail: ✗ #py_fail#\nnote: > /app/src/#file#(#line#)#word#()\nnote: (Pdb) p #word#\nsay: #recovery#\ntool: Edit(#file#)\nadd: #code#\nnote: Added #n# lines",
+  "tool: Bash(rg breakpoint src)\nnote: Found #few# matches\nsay: Left a breakpoint() in. Removing.\ntool: Edit(#file#)\ndel: breakpoint()\nnote: Removed 1 lines",
+]
+anytime = [
+  "tool: Bash(git status --short)\nok: #files_changed# files changed",
+  "tool: Bash(git diff --stat)\nnote: #count# insertions, #few# deletions",
+  "tool: Bash(uv add #word#)\nok: Added #word#==#few#.#frac#.0",
+  "tool: Bash(uv run ruff format src/#file#)\nok: 1 file reformatted",
+  "tool: Bash(uv lock --upgrade-package #word#)\nnote: Updated #word# v#few#.#small#.0 -> v#few#.#small#.1",
+  "tool: Bash(rg #word# src)\nnote: Found #count# matches",
+  "#read#",
+  "#delegate#",
+]
+grep = ["TODO", "FIXME", "#word#", "# type: ignore", "# noqa", "breakpoint()", "print(", "Any"]
+command = [
+  "uv run pytest -q -x",
+  "uv run ruff check .",
+  "uv run mypy src",
+  "uv sync",
+  "uv run python -m #area#",
+  "uv run alembic upgrade head",
+]
+code = [
+  "#word# = #n#",
+  "import #word#",
+  "def #word#(self):",
+  "return #word#",
+  "# noqa",
+  "@dataclass(frozen=True) class #word.camel#:",
+  "def #word#(value: str, *, strict: bool = False) -> #word.camel# | None:",
+  "async def fetch_#word#(client: httpx.AsyncClient) -> list[#word.camel#]:",
+  "    async with client.get(\"/#word#\") as response:",
+  "#word#s = [x.#word# for x in #word#s if x.#word# is not None]",
+  "lookup = {x.id: x for x in #word#s}",
+  "from __future__ import annotations",
+  "results = await asyncio.gather(*(fetch_#word#(c) for c in clients))",
+  "with pytest.raises(ValueError, match=\"#word#\"):",
+  "@pytest.fixture def #word#() -> #word.camel#:",
+  "breakpoint()",
+  "class #word.camel#(BaseModel):     #word#: int = #n#",
+  "logger.info(\"loaded %d #word#\", len(#word#s))",
+]

@@ -1,5 +1,6 @@
 [pack]
 key = "matchmaker"
+extends = "python"
 task = "find my soulmate with matchmaking"
 keywords = [
   "soulmate", "soulmates", "matchmaker", "matchmaking", "wingman", "rizz",
@@ -23,28 +24,6 @@ word = [
   "dinner", "algorithm", "hands", "feelings", "rizz", "swipe", "umbrella",
   "pairing", "quota", "optimum",
 ]
-code = [
-  "#word# = #n#",
-  "import #word#",
-  "def #word#(self, #word#):",
-  "for _ in range(#n#): simulate(#word#)",
-  "if not #word#: return #word#",
-  "assert #word# <= #n#",
-  "# TODO: more #word#",
-  "log.info(#word#)",
-  "await #word#.run(#n#)",
-  "#word#.expire(hours=#n#)",
-  "del #word#  # the system knows best",
-  "return optimize(#word#, #word#)",
-]
-command = [
-  "uv run simulate --runs 1000",
-  "pytest tests/test_pairing.py",
-  "python run_1000_dates.py",
-  "ruff check .",
-  "mypy compatibility.py",
-  "make #area#",
-]
 quip = [
   "Match: 97.3%.",
   "Added a calm voice.",
@@ -67,4 +46,28 @@ final = [
   "Simulations agree.",
   "Dinner is served.",
   "Feelings logged.",
+]
+
+[extend]
+code = [
+  "#word# = #n#",
+  "import #word#",
+  "def #word#(self, #word#):",
+  "for _ in range(#n#): simulate(#word#)",
+  "if not #word#: return #word#",
+  "assert #word# <= #n#",
+  "# TODO: more #word#",
+  "log.info(#word#)",
+  "await #word#.run(#n#)",
+  "#word#.expire(hours=#n#)",
+  "del #word#  # the system knows best",
+  "return optimize(#word#, #word#)",
+]
+command = [
+  "uv run simulate --runs 1000",
+  "pytest tests/test_pairing.py",
+  "python run_1000_dates.py",
+  "ruff check .",
+  "mypy compatibility.py",
+  "make #area#",
 ]

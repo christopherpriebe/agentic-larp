@@ -1,5 +1,6 @@
 [pack]
 key = "dropship"
+extends = "typescript"
 task = "start a dropshipping store"
 keywords = [
   "dropship", "dropships", "dropshipping", "dropshipper", "dropshippers", "shopify", "ecommerce", "e-commerce", "aliexpress",
@@ -22,6 +23,25 @@ word = [
   "margin", "supplier", "cart", "upsell", "roas", "chargeback_risk", "sku",
   "fulfillment", "countdown", "review", "coupon", "drop", "pixel", "funnel",
 ]
+quip = [
+  "Margin: 1,500%. Cost: $3.12.",
+  "Added a fake countdown timer.",
+  "Ships in 6-8 weeks. Said 2-3 days.",
+  "ROAS is improving (it is 0.8).",
+  "Renamed the product. Same product.",
+  "Only 3 left! (we have 40,000).",
+  "Reviews: 4.9 stars. Written Tuesday.",
+  "Supplier replied with a thumbs up.",
+  "Founder story is 70% true.",
+]
+final = [
+  "Store is live.",
+  "Checkout converts. Nobody asks why.",
+  "Tracking page says 'in transit'.",
+  "First sale: my cousin.",
+]
+
+[extend]
 code = [
   "const #word# = await fetchSupplier('#word#');",
   "cart.add({ sku: '#word#', qty: #n# });",
@@ -39,21 +59,4 @@ command = [
   "node sync_suppliers.js",
   "git commit -am 'add urgency'",
   "stripe listen",
-]
-quip = [
-  "Margin: 1,500%. Cost: $3.12.",
-  "Added a fake countdown timer.",
-  "Ships in 6-8 weeks. Said 2-3 days.",
-  "ROAS is improving (it is 0.8).",
-  "Renamed the product. Same product.",
-  "Only 3 left! (we have 40,000).",
-  "Reviews: 4.9 stars. Written Tuesday.",
-  "Supplier replied with a thumbs up.",
-  "Founder story is 70% true.",
-]
-final = [
-  "Store is live.",
-  "Checkout converts. Nobody asks why.",
-  "Tracking page says 'in transit'.",
-  "First sale: my cousin.",
 ]

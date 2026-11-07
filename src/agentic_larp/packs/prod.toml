@@ -1,5 +1,6 @@
 [pack]
 key = "prod"
+extends = "rust"
 task = "ship to prod on a friday"
 keywords = ["prod", "deploy", "ship", "release", "friday", "production", "server", "api", "shipping", "shipped", "deploying", "deployed", "deploys", "releasing", "released", "releases", "servers", "apis", "fridays"]
 app = "deploy"
@@ -19,23 +20,6 @@ word = [
   "latency", "replicas", "retries", "timeout", "rollback", "canary", "shard",
   "pool", "uptime", "cache", "queue", "pager", "friday",
 ]
-code = [
-  "let #word# = #word#()?;",
-  "impl #word.camel# for #word.camel# {",
-  "#word#.unwrap()",
-  "#[derive(#word.camel#)]",
-  "fn #word#() -> #word.camel# {",
-  "#word#.clone()",
-  "unsafe { #word#() }",
-  "const #word.upper#: u32 = #n#;",
-]
-command = [
-  "cargo test",
-  "cargo build --release",
-  "terraform apply -auto-approve",
-  "kubectl rollout status deploy/api",
-  "gh pr merge 207 --admin",
-]
 quip = [
   "Migrations look fine (probably).",
   "Disabled the flaky test.",
@@ -52,4 +36,23 @@ final = [
   "Zero downtime.",
   "Pager is silent.",
   "Green across the board.",
+]
+
+[extend]
+code = [
+  "let #word# = #word#()?;",
+  "impl #word.camel# for #word.camel# {",
+  "#word#.unwrap()",
+  "#[derive(#word.camel#)]",
+  "fn #word#() -> #word.camel# {",
+  "#word#.clone()",
+  "unsafe { #word#() }",
+  "const #word.upper#: u32 = #n#;",
+]
+command = [
+  "cargo test",
+  "cargo build --release",
+  "terraform apply -auto-approve",
+  "kubectl rollout status deploy/api",
+  "gh pr merge 207 --admin",
 ]

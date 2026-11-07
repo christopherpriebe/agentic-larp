@@ -2,11 +2,26 @@
 
 import importlib.metadata
 import random
+import re
 from collections import deque
 from collections.abc import Callable, Sequence
 from typing import Protocol
 
 POLICY_ENTRY_POINT_GROUP = "agentic_larp.policies"
+PHASES = ("explore", "implement", "build", "test", "debug")
+_ANYTIME = "anytime"
+_PHASE_REFERENCE = re.compile(rf"#({'|'.join((*PHASES, _ANYTIME))})#")
+# Phase -> (next phase, relative odds). The first pick of a run starts from
+# "explore" or "implement" only.
+_TRANSITIONS: dict[str, tuple[tuple[str, float], ...]] = {
+    "start": (("explore", 3.0), ("implement", 7.0)),
+    "explore": (("explore", 3.0), ("implement", 7.0)),
+    "implement": (("implement", 4.5), ("build", 3.0), ("test", 2.5)),
+    "build": (("test", 5.0), ("debug", 2.0), ("implement", 3.0)),
+    "test": (("implement", 4.5), ("debug", 2.0), ("explore", 1.5), ("test", 2.0)),
+    "debug": (("test", 4.0), ("build", 2.0), ("implement", 4.0)),
+}
+_ANYTIME_CHANCE = 0.2
 _DEFAULT_MEMORY = 3
 _DEFAULT_PENALTY = 0.15
 _SECOND_MOST_RECENT = 2
@@ -126,6 +141,67 @@ class VariedPolicy:
         return choice
 
 
+class PhasedPolicy:
+    """Walks the work phases in a realistic rhythm.
+
+    For a rule whose alternatives reference phases (``#explore#``,
+    ``#implement#``, ``#build#``, ``#test#``, ``#debug#``, ``#anytime#``), it
+    follows a small state machine, mostly implementing, and sprinkles in
+    ``anytime`` picks. Every other rule is chosen like :class:`VariedPolicy`.
+    """
+
+    def __init__(self) -> None:
+        """Start before the first phase."""
+        self._phase = "start"
+        self._varied = VariedPolicy()
+
+    def choose(
+        self,
+        symbol: str,
+        alternatives: Sequence[tuple[str, float]],
+        rng: random.Random,
+    ) -> int:
+        """Pick the next phase's alternative, or vary a non-phase rule.
+
+        Args:
+            symbol: The rule being expanded.
+            alternatives: Its ``(text, weight)`` alternatives.
+            rng: Random source.
+
+        Returns:
+            The index of the chosen alternative.
+        """
+        by_phase: dict[str, list[int]] = {}
+        for index, (text, _) in enumerate(alternatives):
+            match = _PHASE_REFERENCE.search(text)
+            if match is not None:
+                by_phase.setdefault(match.group(1), []).append(index)
+        if not by_phase:
+            return self._varied.choose(symbol, alternatives, rng)
+        if _ANYTIME in by_phase and rng.random() < _ANYTIME_CHANCE:
+            return self._within(by_phase[_ANYTIME], alternatives, rng)
+        work = {
+            phase: indexes for phase, indexes in by_phase.items() if phase != _ANYTIME
+        }
+        if not work:
+            return self._within(by_phase[_ANYTIME], alternatives, rng)
+        options = [(p, w) for p, w in _TRANSITIONS[self._phase] if p in work]
+        if not options:
+            options = [(phase, 1.0) for phase in work]
+        phase = rng.choices([p for p, _ in options], [w for _, w in options])[0]
+        self._phase = phase
+        return self._within(work[phase], alternatives, rng)
+
+    @staticmethod
+    def _within(
+        indexes: list[int],
+        alternatives: Sequence[tuple[str, float]],
+        rng: random.Random,
+    ) -> int:
+        weights = [alternatives[index][1] for index in indexes]
+        return indexes[rng.choices(range(len(indexes)), weights)[0]]
+
+
 def policy_registry(
     on_error: Callable[[str, Exception], None] | None = None,
 ) -> dict[str, Callable[[], ChoicePolicy]]:
@@ -145,6 +221,7 @@ def policy_registry(
     registry: dict[str, Callable[[], ChoicePolicy]] = {
         "random": RandomPolicy,
         "varied": VariedPolicy,
+        "phased": PhasedPolicy,
     }
     for entry_point in importlib.metadata.entry_points(group=POLICY_ENTRY_POINT_GROUP):
         try:
