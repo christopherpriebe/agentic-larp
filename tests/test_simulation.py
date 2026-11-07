@@ -5,6 +5,7 @@ import pytest
 from agentic_larp import (
     LarpError,
     LogLine,
+    RunMode,
     Sim,
     SwarmSettings,
     format_duration,
@@ -77,7 +78,8 @@ def test_poke_makes_agents_frantic_up_to_a_cap() -> None:
 
 
 def test_mashing_keys_makes_more_progress() -> None:
-    calm, frantic = make_sim(seed=5), make_sim(seed=5)
+    endless = SwarmSettings(mode=RunMode.ENDLESS)
+    calm, frantic = make_sim(endless, seed=5), make_sim(endless, seed=5)
     for _ in range(200):
         frantic.poke(5)
         frantic.tick(0.05)
@@ -156,7 +158,7 @@ def test_log_lines_are_values() -> None:
 
 
 def test_clock_runs_at_real_time_even_when_frantic() -> None:
-    sim = make_sim()
+    sim = make_sim(SwarmSettings(mode=RunMode.ENDLESS))
     started = sim.run_time
     for _ in range(200):
         sim.poke(25)
@@ -165,8 +167,8 @@ def test_clock_runs_at_real_time_even_when_frantic() -> None:
 
 
 def test_activity_speeds_up_the_agents_but_not_the_clock() -> None:
-    slow = make_sim(SwarmSettings(activity=1.0), seed=6)
-    fast = make_sim(SwarmSettings(activity=4.0), seed=6)
+    slow = make_sim(SwarmSettings(activity=1.0, mode=RunMode.ENDLESS), seed=6)
+    fast = make_sim(SwarmSettings(activity=4.0, mode=RunMode.ENDLESS), seed=6)
     slow_start, fast_start = slow.run_time, fast.run_time
     calls = slow.total_calls, fast.total_calls
     run(slow, 10)

@@ -25,7 +25,7 @@ from agentic_larp._packs import (
 )
 from agentic_larp._policies import ChoicePolicy, policy_registry
 from agentic_larp._scenarios import pick_scenario
-from agentic_larp._sim import Sim, SwarmSettings
+from agentic_larp._sim import RunMode, Sim, SwarmSettings
 from agentic_larp._stages import LaunchStage, describe_unknown_app
 from agentic_larp._wall import PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH
 from agentic_larp.apps import DESCRIPTIONS, App, Outcome, app_registry
@@ -48,6 +48,10 @@ def _parse_speed(text: str) -> float:
         message = f"must be a finite number above 0, not {text!r}"
         raise argparse.ArgumentTypeError(message)
     return value
+
+
+def _parse_length(text: str) -> float:
+    return _parse_speed(text)
 
 
 def _parse_agent_count(text: str) -> int:
@@ -184,6 +188,18 @@ def build_parser() -> argparse.ArgumentParser:
             "every other timing are real seconds"
         ),
     )
+    parser.add_argument(
+        "--length",
+        type=_parse_length,
+        default=20.0,
+        metavar="SECS",
+        help="seconds the swarm takes to converge at speed 1 (default 20)",
+    )
+    parser.add_argument(
+        "--forever",
+        action="store_true",
+        help="never converge: the agents keep finding more to do",
+    )
     parser.add_argument("--lead-model", default="maestro", help="name for lead agents")
     parser.add_argument(
         "--intern-model", default="intern", help="name for swarm agents"
@@ -305,6 +321,8 @@ def _run_show(
         lead_model=args.lead_model,
         intern_model=args.intern_model,
         policy=args.policy_factory,
+        mode=RunMode.ENDLESS if args.forever else RunMode.CONVERGE,
+        length=args.length,
     )
     try:
         sim = Sim(scenarios, settings, rng)

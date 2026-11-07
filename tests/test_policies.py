@@ -14,6 +14,7 @@ from agentic_larp import (
     Grammar,
     GrammarError,
     RandomPolicy,
+    RunMode,
     Sim,
     SwarmSettings,
     VariedPolicy,
@@ -142,7 +143,7 @@ def streamed_repeats(policy: Callable[[], ChoicePolicy], directory: Path) -> int
     """
     path = directory / "tiny.toml"
     path.write_text(TINY_PACK, encoding="utf-8")
-    settings = SwarmSettings(agents=8, interns=0, policy=policy)
+    settings = SwarmSettings(agents=8, interns=0, policy=policy, mode=RunMode.ENDLESS)
     sim = Sim([load_scenario(path)], settings, random.Random(12))
     for agent in sim.agents:
         # Uncapped, so the log keeps every line the agent writes.

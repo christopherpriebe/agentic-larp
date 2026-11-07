@@ -10,7 +10,7 @@ from agentic_larp._errors import GrammarError
 from agentic_larp._log import LogLine
 from agentic_larp._policies import ChoicePolicy, RandomPolicy
 
-REQUIRED_SYMBOLS = ("action", "quip", "final", "intern_task")
+REQUIRED_SYMBOLS = ("action", "quip", "final", "intern_task", "todo")
 BOUND_SYMBOLS = ("file", "area", "agent", "intern", "n")
 
 _REFERENCE = re.compile(r"#([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)#")

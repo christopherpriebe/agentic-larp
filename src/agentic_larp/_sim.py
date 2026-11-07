@@ -5,6 +5,7 @@ import random
 from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from agentic_larp._errors import LarpError
 from agentic_larp._grammar import Grammar, parse_activity
@@ -46,6 +47,49 @@ _INTERN_START_TOKENS = 7_400
 _SECONDS_PER_INTERN_CALL = 4
 _INTERNS_PER_CALLER = 4
 _TOKEN_EPOCH = 300
+_MAX_REPORTS = 12
+_MIN_TODOS = 3
+_MAX_TODOS = 6
+_MAX_CREEP = 3
+_SPEED_SPREAD = 0.2
+_CREEP_SPREAD = 0.25
+_TODO_SHARE = (0.5, 1.5)
+_MIN_IDLE = 0.5
+_MAX_IDLE = 1.7
+
+
+class RunMode(StrEnum):
+    """Whether the swarm converges on its own or creeps forever."""
+
+    CONVERGE = "converge"
+    ENDLESS = "endless"
+
+
+@dataclass(frozen=True, slots=True)
+class Todo:
+    """One item on an agent's todo list.
+
+    Attributes:
+        text: What the item says.
+        seconds: Seconds of work it takes at activity 1.
+
+    Raises:
+        LarpError: If ``text`` is blank or ``seconds`` is not a finite number
+            above 0.
+    """
+
+    text: str
+    seconds: float
+
+    def __post_init__(self) -> None:
+        if not self.text.strip():
+            message = "a todo needs text"
+            raise LarpError(message)
+        if not math.isfinite(self.seconds) or self.seconds <= 0:
+            message = (
+                f"a todo's seconds must be a finite number above 0, not {self.seconds}"
+            )
+            raise LarpError(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +104,9 @@ class SwarmSettings:
         intern_model: Name prefix for interns.
         policy: Factory for the choice policy; each lead agent and each
             intern gets its own instance.
+        mode: Whether the agents finish their todos and stop, or keep finding
+            more.
+        length: Target seconds for the swarm to converge at activity 1.
     """
 
     agents: int = 8
@@ -68,6 +115,8 @@ class SwarmSettings:
     lead_model: str = "maestro"
     intern_model: str = "intern"
     policy: Callable[[], ChoicePolicy] = RandomPolicy
+    mode: RunMode = RunMode.CONVERGE
+    length: float = 20.0
 
 
 @dataclass(slots=True)
@@ -89,6 +138,12 @@ class Agent:
         finish_at: Real time it wraps up after the first "ship it".
         frozen_elapsed: Run time it worked for, fixed once it finishes.
         last_active: Sim time a line last entered its log.
+        todos: Its todo list.
+        todos_done: How many todos it has completed.
+        work: Boosted seconds it has worked.
+        todo_average: Average seconds of its original todos.
+        idle: Boosted seconds spent waiting to start the next tool call.
+        idle_target: Boosted seconds it waits before the next tool call.
     """
 
     name: str
@@ -105,6 +160,12 @@ class Agent:
     finish_at: float | None = None
     frozen_elapsed: float | None = None
     last_active: float = 0.0
+    todos: list[Todo] = field(default_factory=list)
+    todos_done: int = 0
+    work: float = 0.0
+    todo_average: float = 1.0
+    idle: float = 0.0
+    idle_target: float = 1.0
 
 
 @dataclass(slots=True)
@@ -149,6 +210,9 @@ class Sim:
         if not math.isfinite(settings.activity) or settings.activity <= 0:
             message = "activity must be a finite number above 0"
             raise LarpError(message)
+        if not math.isfinite(settings.length) or settings.length <= 0:
+            message = "length must be a finite number above 0"
+            raise LarpError(message)
         if settings.agents < 1:
             message = "a swarm needs at least one agent"
             raise LarpError(message)
@@ -160,6 +224,8 @@ class Sim:
         self._policies: dict[str, ChoicePolicy] = {}
         self._intern_policies: dict[str, ChoicePolicy] = {}
         self.activity = settings.activity
+        self.mode = settings.mode
+        self.length = settings.length
         self.lead_model = settings.lead_model
         self.intern_model = settings.intern_model
         self.rng = rng or random.Random()
@@ -169,7 +235,7 @@ class Sim:
         self.energy = 0.0
         self.agents: list[Agent] = []
         self.interns: list[Intern] = []
-        self.reports: deque[tuple[str, str]] = deque(maxlen=12)
+        self.reports: deque[tuple[str, str]] = deque(maxlen=_MAX_REPORTS)
         self.pending_user: list[str] = []
         for _ in range(settings.agents):
             self.spawn_agent(quiet=True)
@@ -230,6 +296,15 @@ class Sim:
         """Return whether every lead agent has finished."""
         return all(agent.is_done for agent in self.agents)
 
+    @property
+    def is_converged(self) -> bool:
+        """Return whether every agent finished by completing all its todos."""
+        return (
+            self.mode is RunMode.CONVERGE
+            and self.is_all_done
+            and all(agent.todos_done == len(agent.todos) for agent in self.agents)
+        )
+
     def elapsed(self, agent: Agent) -> float:
         """Return the seconds an agent has been working.
 
@@ -266,12 +341,14 @@ class Sim:
             spawn_offset=self.rng.uniform(0, 150) if quiet else self._run_time,
             verb=self.rng.choice(SPINNER_VERBS),
         )
+        self._policies[agent.name] = self._policy_factory()
+        self._write_todos(agent)
+        agent.idle_target = self.rng.uniform(_MIN_IDLE, _MAX_IDLE)
         if quiet:
             agent.tokens = float(self.rng.randint(30_000, 90_000))
             agent.calls = self.rng.randint(20, 60)
         else:
             self.reports.append((self.orchestrator, f"spawning {agent.name} → {area}"))
-        self._policies[agent.name] = self._policy_factory()
         self.agents.append(agent)
         return agent
 
@@ -321,6 +398,9 @@ class Sim:
         for agent in self.agents:
             if not agent.is_done:
                 self._tick_agent(agent, dt, boost)
+        if self.running == 0:
+            self._stop_interns()
+            return
         self._intern_tokens += (
             len(self.interns) * _INTERN_TOKENS_PER_SECOND * dt * boost
         )
@@ -341,19 +421,32 @@ class Sim:
             elif not intern.is_done and rng.random() < dt * 0.6 * boost:
                 self._assign_intern(intern, keep_time=True)
 
+    def _stop_interns(self) -> None:
+        for intern in self.interns:
+            if not intern.is_done:
+                intern.is_done, intern.frozen_elapsed = True, self._run_time
+
     def _tick_agent(self, agent: Agent, dt: float, boost: float) -> None:
         rng = self.rng
         hurry = 1 if agent.finish_at is None else 4
         agent.tokens += _AGENT_TOKENS_PER_SECOND * dt * boost
+        agent.work += dt * boost
+        if self._advance_todos(agent):
+            return
         if agent.queue and rng.random() < dt * 9 * boost * hurry:
             agent.log.append(agent.queue.popleft())
             agent.last_active = self.now
             agent.calls += 1
         elif not agent.queue:
-            if agent.finish_at is not None and self.now >= agent.finish_at:
+            is_rushed = agent.finish_at is not None and self.now >= agent.finish_at
+            if is_rushed:
                 self._finish(agent)
-            elif rng.random() < dt * 0.9 * boost * hurry:
-                self._emit(agent)
+            else:
+                agent.idle += dt * boost * hurry
+                if agent.idle >= agent.idle_target:
+                    agent.idle = 0.0
+                    agent.idle_target = rng.uniform(_MIN_IDLE, _MAX_IDLE)
+                    self._emit(agent)
         if rng.random() < dt * 0.08:
             agent.verb = rng.choice(SPINNER_VERBS)
 
@@ -378,6 +471,72 @@ class Sim:
             "intern": intern,
             "n": str(rng.choice(_NUMBERS)),
         }
+
+    def _write_todos(self, agent: Agent) -> None:
+        """Give an agent a todo list that adds up to its deadline."""
+        rng = self.rng
+        deadline = self.length * rng.uniform(1 - _SPEED_SPREAD, 1 + _SPEED_SPREAD)
+        shares = [
+            rng.uniform(*_TODO_SHARE)
+            for _ in range(rng.randint(_MIN_TODOS, _MAX_TODOS))
+        ]
+        agent.todo_average = deadline / len(shares)
+        agent.todos = self._draft_todos(
+            agent, [deadline * share / sum(shares) for share in shares]
+        )
+
+    def _draft_todos(self, agent: Agent, seconds: list[float]) -> list[Todo]:
+        rng = self.rng
+        grammar = self._grammar_for(agent)
+        return [
+            Todo(
+                grammar.expand(
+                    "todo",
+                    rng,
+                    self._bindings(agent, rng.choice(agent.files), agent.area),
+                    policy=self._policies[agent.name],
+                ),
+                amount,
+            )
+            for amount in seconds
+        ]
+
+    def _advance_todos(self, agent: Agent) -> bool:
+        """Complete the todos the agent's work has paid for.
+
+        Returns:
+            Whether the agent finished.
+        """
+        while agent.todos_done < len(agent.todos):
+            due = sum(todo.seconds for todo in agent.todos[: agent.todos_done + 1])
+            if agent.work < due:
+                return False
+            agent.todos_done += 1
+            if agent.todos_done < len(agent.todos):
+                continue
+            if self.mode is RunMode.CONVERGE:
+                self._finish(agent)
+                return True
+            self._creep(agent)
+        return False
+
+    def _creep(self, agent: Agent) -> None:
+        rng = self.rng
+        extra = rng.randint(1, _MAX_CREEP)
+        average = agent.todo_average
+        agent.todos.extend(
+            self._draft_todos(
+                agent,
+                [
+                    average * rng.uniform(1 - _CREEP_SPREAD, 1 + _CREEP_SPREAD)
+                    for _ in range(extra)
+                ],
+            )
+        )
+        noun = "thing" if extra == 1 else "things"
+        self.reports.append(
+            (self.orchestrator, f"scope creep: {agent.name} found {extra} more {noun}")
+        )
 
     def _emit(self, agent: Agent) -> None:
         """Queue one fake tool call, a few log lines long, for an agent."""

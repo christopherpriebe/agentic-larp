@@ -51,7 +51,9 @@ larp --grid 3x2                   # six feeds on screen, a spotlight rotates thr
 larp --pack ./zebra.toml -s zebra # your own pack
 larp --then "cmatrix"             # after shipping, run any real command
 larp --play hacker                # skip the agents, go straight to an app
-larp --auto 8                     # ships itself after 8s (for screen recordings)
+larp --length 40                  # the swarm takes about 40s to converge (default 20)
+larp --forever                    # never converges: the agents keep finding more to do
+larp --auto 8                     # ships itself after 8s of work (for screen recordings)
 larp --fail                       # the payoff app breaks, then melts down (jk)
 larp --list                       # scenarios and apps
 ```
@@ -76,8 +78,20 @@ work (the clock, `--auto`, and every other timing are real seconds). Want
 different names on the panels? `--lead-model` and `--intern-model` set them,
 for example `--lead-model fable --intern-model sonnet`.
 
+Each run opens with a plan: a `TodoWrite` screen listing every agent's todo
+list (3 to 6 items each), which any key skips (the key still goes to the
+prompt, so you can start typing `ship it` right away) and which moves on by
+itself after two seconds. Todos are timed work: each agent has a deadline of
+about `--length` seconds (0.8 to 1.2 times it, per agent) split across its
+todos, and it works through them at the pace of `--speed` and your typing, so
+they finish staggered, between half and one and a half times `--length`, and
+the prompt goes straight to "ship it?". Type `ship it` early to rush them
+instead. With `--forever` they never converge: each time an agent finishes its
+list the orchestrator reports some scope creep and it gets 1 to 3 more todos
+of the original size. Each panel title shows its progress as `done/total`.
+
 When stdin is not a terminal (piped, in CI), `larp` ships itself after six
-seconds.
+seconds of work (`--auto` counts work time after the plan, not the plan itself).
 
 ### Scenarios and apps
 
@@ -168,11 +182,13 @@ Text refers to other rules as `#name#`, optionally with modifiers applied left
 to right: `#word.capitalize#` (`Red_flags`), `#word.camel#` (`RedFlags`),
 `#word.upper#`. A lone `#` is just a `#`. These names are bound by the
 simulation and need no rule: `file`, `area`, `agent`, `intern`, `n`. A pack must
-end up with the rules `action`, `quip`, `final`, and `intern_task`; the base
+end up with the rules `action`, `quip`, `final`, `intern_task`, and `todo`
+(one line of an agent's todo list, such as `Write tests for #file#`; it is
+required now, so a custom base grammar must define it too); the base
 grammar supplies them and the machinery behind them (edits, shell runs that
 fail and recover, reads, writes, greps, web searches, delegation to interns),
 so a pack mostly provides vocabulary: `word`, `code`, `command`, `quip`,
-`final`.
+`final`, and optionally its own `todo` lines.
 
 An `action` expands to a script with one tagged line per row:
 

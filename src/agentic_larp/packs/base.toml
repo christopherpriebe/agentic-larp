@@ -115,3 +115,16 @@ code = ["#word# = #n#;", "// TODO: more #word#", "return #word#;"]
 command = ["make test"]
 quip = ["Looks good to me.", "Works on my machine."]
 final = ["Done.", "Ship-ready."]
+todo = [
+  "Implement the #area# #word#",
+  "Write tests for #file#",
+  "Refactor #area# error handling",
+  "Wire up #word# in #file#",
+  "Fix flaky #area# tests",
+  "Add logging to #file#",
+  "Review the #area# #word#",
+  "Document the #area# API",
+  "Migrate #file# to the new #word#",
+  "Profile and optimize #area#",
+  "Clean up TODOs in #file#",
+]

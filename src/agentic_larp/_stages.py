@@ -1,10 +1,15 @@
-"""The built-in stages: work, wrap up, get ready, ship, launch, receipt."""
+"""The built-in stages: plan, work, wrap up, get ready, ship, launch, receipt."""
 
+import math
 import subprocess
 import sys
 from collections.abc import Iterable
 
+from rich.console import Group, RenderableType
+from rich.layout import Layout
 from rich.markup import escape
+from rich.table import Table
+from rich.text import Text
 
 from agentic_larp._flow import END, ScreenStage, Session
 from agentic_larp._wall import ACCENT
@@ -15,6 +20,9 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
+PLAN_SECONDS = 2.0
+_PLAN_COLUMN_WIDTH = 30
+_HEADER_ROWS = 4
 _AUTO_SHIP_DELAY = 2.5
 _LAUNCH_SECONDS = 3.2
 _UNKNOWN_APP = 2
@@ -33,16 +41,111 @@ def describe_unknown_app(name: str, apps: Iterable[str]) -> str:
     return f"[red]no app called {escape(repr(name))}.[/] try: {', '.join(apps)}"
 
 
+class PlanStage(ScreenStage):
+    """Show every agent's todo list before any work starts."""
+
+    mode = "running"
+
+    @override
+    def start(self) -> None:
+        """Start the plan's own clock."""
+        self._elapsed = 0.0
+
+    @override
+    def on_key(self, key: str) -> bool:
+        """Skip the plan on any key, and pass the key on to the prompt.
+
+        Args:
+            key: A key name.
+
+        Returns:
+            ``False``, since the plan is over.
+        """
+        self.finish()
+        self.wall.handle_key(key)
+        return False
+
+    @override
+    def tick(self, dt: float) -> bool:
+        """Count down the plan without advancing the swarm.
+
+        Args:
+            dt: Real seconds since the previous frame.
+
+        Returns:
+            ``False`` once the plan is over.
+        """
+        self._elapsed += dt * self.session.pace
+        if self._elapsed >= PLAN_SECONDS:
+            self.finish()
+        return not self.is_done
+
+    @override
+    def render(self) -> RenderableType:
+        """Build the todo lists.
+
+        Returns:
+            The wall's header and prompt around every agent's todos.
+        """
+        sim = self.wall.sim
+        width, height = self.wall.console.size
+        body = max(1, height - _HEADER_ROWS - 2)
+        count = len(sim.agents)
+        most = max(len(agent.todos) for agent in sim.agents)
+        columns = 1
+        for candidate in range(1, max(1, width // _PLAN_COLUMN_WIDTH) + 1):
+            columns = candidate
+            if body // math.ceil(count / candidate) >= most + 2:
+                break
+        shown = max(1, body // math.ceil(count / columns) - 2)
+        grid = Table.grid(padding=(0, 2), expand=True)
+        for _ in range(columns):
+            grid.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
+        blocks = []
+        for agent in sim.agents:
+            todos = [todo.text for todo in agent.todos]
+            if len(todos) > shown:
+                hidden = len(todos) - shown + 1
+                todos = [*todos[: shown - 1], f"+{hidden} more"]
+            lines = [Text(agent.name, style="bold", no_wrap=True, overflow="ellipsis")]
+            lines += [
+                Text(f"  ☐ {text}", no_wrap=True, overflow="ellipsis") for text in todos
+            ]
+            blocks.append(Group(*lines, Text("")))
+        for start in range(0, len(blocks), columns):
+            row: list[RenderableType] = list(blocks[start : start + columns])
+            row += [Text("")] * (columns - len(row))
+            grid.add_row(*row)
+        heading = Text.assemble(
+            ("● ", "green"),
+            ("TodoWrite", "bold"),
+            (f"({sim.orchestrator}: {count} agents)", "dim"),
+        )
+        layout = Layout()
+        layout.split_column(
+            Layout(self.wall.render_header(), size=_HEADER_ROWS),
+            Layout(Group(heading, grid)),
+            Layout(self.wall.render_footer(), size=1),
+        )
+        return layout
+
+
 class WorkStage(ScreenStage):
-    """The agents work until you type "ship it" (or demo mode does)."""
+    """The agents work until they converge or you type "ship it"."""
 
     mode = "running"
 
     @override
     def update(self) -> None:
-        """Ship by itself once demo mode's time is up."""
+        """Move on once the swarm converges; ship once demo mode's time is up."""
+        sim = self.wall.sim
+        if sim.is_converged:
+            done = f"all {len(sim.agents)} agents done. ready to ship."
+            sim.reports.append((sim.orchestrator, done))
+            self.finish("ready")
+            return
         auto = self.session.auto
-        if auto is not None and self.wall.sim.now >= auto:
+        if auto is not None and sim.now >= auto:
             self.submit("ship it")
 
     @override

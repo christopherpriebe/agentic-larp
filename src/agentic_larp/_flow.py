@@ -24,7 +24,7 @@ if sys.version_info >= (3, 12):
 else:
     pass
 
-FLOW: tuple[str, ...] = ("work", "wrap", "ready", "ship", "launch", "receipt")
+FLOW: tuple[str, ...] = ("plan", "work", "wrap", "ready", "ship", "launch", "receipt")
 END = "end"
 STAGE_ENTRY_POINT_GROUP = "agentic_larp.stages"
 _SHIP_WORDS = re.compile(r"\b(ship|send|yolo|lgtm|merge|deploy|push)", re.IGNORECASE)
@@ -352,6 +352,7 @@ def stage_registry() -> dict[str, Callable[[], Stage]]:
     from agentic_larp import _stages  # noqa: PLC0415 - the stages import this module
 
     registry: dict[str, Callable[[], Stage]] = {
+        "plan": _stages.PlanStage,
         "work": _stages.WorkStage,
         "wrap": _stages.WrapStage,
         "ready": _stages.ReadyStage,
