@@ -351,6 +351,7 @@ class Wall:
             (f" {icon} ", f"bold {color}"),
             (agent.name, "bold"),
             (f" · {agent.area} ", "dim"),
+            (f"· {agent.todos_done}/{len(agent.todos)} ", "dim"),
         )
         stats = f" {format_duration(sim.elapsed(agent))} · ↓ {format_tokens(agent.tokens)} · "
         subtitle = Text.assemble((stats, "dim"), (verb, f"italic {color}"), " ")

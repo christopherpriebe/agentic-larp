@@ -268,7 +268,7 @@ def _verify(scenario: Scenario) -> None:
         grammar.check(required=REQUIRED_SYMBOLS, bound=BOUND_SYMBOLS)
         for _ in range(_SMOKE_ACTIONS):
             parse_activity(grammar.expand("action", rng, bindings))
-        for symbol in ("quip", "final", "intern_task"):
+        for symbol in ("quip", "final", "intern_task", "todo"):
             for _ in range(_SMOKE_OTHERS):
                 grammar.expand(symbol, rng, bindings)
 

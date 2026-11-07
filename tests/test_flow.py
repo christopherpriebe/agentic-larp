@@ -79,7 +79,7 @@ class Script:
 
 
 def test_the_flow_is_the_agentic_loop() -> None:
-    assert FLOW == ("work", "wrap", "ready", "ship", "launch", "receipt")
+    assert FLOW == ("plan", "work", "wrap", "ready", "ship", "launch", "receipt")
 
 
 def test_run_flow_plays_stages_in_order(console: Console) -> None:

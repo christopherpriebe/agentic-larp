@@ -10,6 +10,7 @@ from agentic_larp import (
     GrammarError,
     LarpError,
     LogLine,
+    RunMode,
     Sim,
     SwarmSettings,
     discover_scenarios,
@@ -236,7 +237,9 @@ def test_list_shows_toolchains(capsys: pytest.CaptureFixture[str]) -> None:
 
 def run_lines(key: str, seconds: float = 60.0) -> list[LogLine]:
     sim = Sim(
-        [pick_scenario(None, key)], SwarmSettings(agents=8, interns=0), random.Random(3)
+        [pick_scenario(None, key)],
+        SwarmSettings(agents=8, interns=0, mode=RunMode.ENDLESS),
+        random.Random(3),
     )
     for agent in sim.agents:
         agent.log = deque(agent.log)
