@@ -17,6 +17,7 @@ from agentic_larp._grid import Grid
 from agentic_larp._keys import Keys, KeySource
 from agentic_larp._sim import Sim
 from agentic_larp._wall import Mode, Wall
+from agentic_larp._widgets import widget_registry
 from agentic_larp.apps._base import AppContext, Screen, run_frames
 
 if sys.version_info >= (3, 12):
@@ -225,7 +226,11 @@ class ScreenStage:
         self.session = session
         if session.wall is None:
             session.wall = Wall(
-                session.sim, session.console, grid=session.grid, pace=session.pace
+                session.sim,
+                session.console,
+                grid=session.grid,
+                pace=session.pace,
+                widgets=widget_registry(),
             )
         self.wall = session.wall
         self.wall.set_mode(self.mode)
@@ -312,7 +317,7 @@ class ScreenStage:
     def on_spawn(self) -> None:
         """Hook: a request for more agents; refused by default."""
         sim = self.wall.sim
-        sim.reports.append((sim.orchestrator, "no new agents while wrapping up."))
+        sim.report(sim.orchestrator, "no new agents while wrapping up.")
 
     def on_text(self, text: str) -> None:
         """Hook: any other line; broadcast to the agents by default.

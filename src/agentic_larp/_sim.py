@@ -8,6 +8,17 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from agentic_larp._errors import LarpError
+from agentic_larp._events import (
+    AgentFinished,
+    AgentSpawned,
+    Converged,
+    EventBus,
+    LineShown,
+    Report,
+    ScopeCreep,
+    ShipStarted,
+    TodoDone,
+)
 from agentic_larp._grammar import Grammar, parse_activity
 from agentic_larp._log import LogLine
 from agentic_larp._packs import Scenario
@@ -119,7 +130,7 @@ class SwarmSettings:
     length: float = 20.0
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class Agent:
     """A lead agent with its own panel and log.
 
@@ -235,7 +246,9 @@ class Sim:
         self.energy = 0.0
         self.agents: list[Agent] = []
         self.interns: list[Intern] = []
+        self.events = EventBus()
         self.reports: deque[tuple[str, str]] = deque(maxlen=_MAX_REPORTS)
+        self._is_ship_started = self._is_rushed = self._is_converged_published = False
         self.pending_user: list[str] = []
         for _ in range(settings.agents):
             self.spawn_agent(quiet=True)
@@ -258,8 +271,8 @@ class Sim:
         for agent in self.agents:
             for _ in range(self.rng.randint(3, 6)):
                 self._emit(agent)
-            agent.log.extend(agent.queue)
-            agent.queue.clear()
+            while agent.queue:
+                self._show(agent, agent.queue.popleft())
 
     # ---- totals --------------------------------------------------------------
     @property
@@ -298,9 +311,10 @@ class Sim:
 
     @property
     def is_converged(self) -> bool:
-        """Return whether every agent finished by completing all its todos."""
+        """Return whether every agent finished all its todos without a rush."""
         return (
             self.mode is RunMode.CONVERGE
+            and not self._is_rushed
             and self.is_all_done
             and all(agent.todos_done == len(agent.todos) for agent in self.agents)
         )
@@ -348,9 +362,24 @@ class Sim:
             agent.tokens = float(self.rng.randint(30_000, 90_000))
             agent.calls = self.rng.randint(20, 60)
         else:
-            self.reports.append((self.orchestrator, f"spawning {agent.name} → {area}"))
+            self.report(self.orchestrator, f"spawning {agent.name} → {area}")
         self.agents.append(agent)
+        self.events.publish(AgentSpawned(agent))
         return agent
+
+    def report(self, who: str, text: str) -> None:
+        """Add a line to the report feed and announce it.
+
+        Args:
+            who: The speaker.
+            text: What they said.
+        """
+        self.reports.append((who, text))
+        self.events.publish(Report(who, text))
+
+    def _show(self, agent: Agent, line: LogLine) -> None:
+        agent.log.append(line)
+        self.events.publish(LineShown(agent, line))
 
     # ---- input ---------------------------------------------------------------
     def poke(self, amount: float = 1.0) -> None:
@@ -367,16 +396,22 @@ class Sim:
         Args:
             text: What the user typed.
         """
-        self.reports.append(("you", text))
-        self.reports.append((self.orchestrator, f"routing to {self.running} agents"))
+        self.report("you", text)
+        self.report(self.orchestrator, f"routing to {self.running} agents")
         self.pending_user.append(text)
         self.poke(6)
 
+    def start_ship(self) -> None:
+        """Announce that shipping has started; later calls do nothing."""
+        if not self._is_ship_started:
+            self._is_ship_started = True
+            self.events.publish(ShipStarted())
+
     def ship(self) -> None:
         """Have every agent wrap up over the next few seconds."""
-        self.reports.append(
-            (self.orchestrator, "wrapping up. tell everyone to commit.")
-        )
+        self.start_ship()
+        self._is_rushed = True
+        self.report(self.orchestrator, "wrapping up. tell everyone to commit.")
         for agent in self.agents:
             if not agent.is_done and agent.finish_at is None:
                 agent.finish_at = self.now + self.rng.uniform(0.6, 4.5)
@@ -434,7 +469,7 @@ class Sim:
         if self._advance_todos(agent):
             return
         if agent.queue and rng.random() < dt * 9 * boost * hurry:
-            agent.log.append(agent.queue.popleft())
+            self._show(agent, agent.queue.popleft())
             agent.last_active = self.now
             agent.calls += 1
         elif not agent.queue:
@@ -512,6 +547,7 @@ class Sim:
             if agent.work < due:
                 return False
             agent.todos_done += 1
+            self.events.publish(TodoDone(agent, agent.todos[agent.todos_done - 1]))
             if agent.todos_done < len(agent.todos):
                 continue
             if self.mode is RunMode.CONVERGE:
@@ -524,19 +560,19 @@ class Sim:
         rng = self.rng
         extra = rng.randint(1, _MAX_CREEP)
         average = agent.todo_average
-        agent.todos.extend(
-            self._draft_todos(
-                agent,
-                [
-                    average * rng.uniform(1 - _CREEP_SPREAD, 1 + _CREEP_SPREAD)
-                    for _ in range(extra)
-                ],
-            )
+        added = self._draft_todos(
+            agent,
+            [
+                average * rng.uniform(1 - _CREEP_SPREAD, 1 + _CREEP_SPREAD)
+                for _ in range(extra)
+            ],
         )
+        agent.todos.extend(added)
         noun = "thing" if extra == 1 else "things"
-        self.reports.append(
-            (self.orchestrator, f"scope creep: {agent.name} found {extra} more {noun}")
+        self.report(
+            self.orchestrator, f"scope creep: {agent.name} found {extra} more {noun}"
         )
+        self.events.publish(ScopeCreep(agent, tuple(added)))
 
     def _emit(self, agent: Agent) -> None:
         """Queue one fake tool call, a few log lines long, for an agent."""
@@ -567,7 +603,7 @@ class Sim:
             )
             queue.append(LogLine("quip", quip))
             short = file.rsplit("/", 1)[-1]
-            self.reports.append((agent.name, f"{short}: {_lower_first(quip)}"))
+            self.report(agent.name, f"{short}: {_lower_first(quip)}")
 
     def _finish(self, agent: Agent) -> None:
         grammar = self._grammar_for(agent)
@@ -578,12 +614,16 @@ class Sim:
             self._bindings(agent, file, agent.area),
             policy=self._policies[agent.name],
         )
-        agent.log.append(LogLine("quip", final))
-        agent.log.append(LogLine("done", f"✓ {agent.area} done · {agent.calls} calls"))
         agent.last_active = self.now
         agent.frozen_elapsed = self.elapsed(agent)
         agent.is_done = True
-        self.reports.append((agent.name, f"done. {_lower_first(final)}"))
+        self._show(agent, LogLine("quip", final))
+        self._show(agent, LogLine("done", f"✓ {agent.area} done · {agent.calls} calls"))
+        self.report(agent.name, f"done. {_lower_first(final)}")
+        self.events.publish(AgentFinished(agent, final))
+        if self.is_converged and not self._is_converged_published:
+            self._is_converged_published = True
+            self.events.publish(Converged())
 
     def _assign_intern(self, intern: Intern, *, keep_time: bool = False) -> None:
         rng = self.rng

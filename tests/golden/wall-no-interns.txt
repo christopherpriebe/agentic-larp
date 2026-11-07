@@ -1,0 +1,44 @@
+❯ orion  ship to prod on a friday ─────────────────────────────────────────────────────────── ✢ orchestrating 6 · 8m 22s · ↓ 376.7k · $11.87
+maestro-1  server.rs: rollback plan: vibes.                                                                                                 
+maestro-3  cache.rs: added retries. Lots of retries.                                                                                        
+maestro-5  edge.rs: cache hit rate 100%.                                                                                                    
+╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✻ maestro-2 · db · 0/4  ──────────────────╮╭─  · maestro-3 · cache · 0/3  ───────────────╮
+│   ⎿  Updating pager v1.1.0 -> v1.5.1       ││ ● Bash(cargo test --release)                ││ ● Bash(cargo nextest run)                   │
+│ Disabled the flaky test.                   ││   ⎿  exit 0                                 ││   ⎿  Finished `test` profile [unoptimized … │
+│ ● Bash(git status --short)                 ││ ● Bash(cargo fmt --check)                   ││ ● Edit(redis.conf)                          │
+│   ⎿  1 files changed                       ││   ⎿  [ perf record: Captured and wrote 128… ││ 203 + use std::sync::{Arc, Mutex};          │
+│ ● Bash(cargo test)                         ││   ⎿  writing flamegraph to "flamegraph.svg" ││ 204 - unsafe { uptime() }                   │
+│   ⎿  test result: ok. 172 passed; 0 faile… ││ ● Edit(schema.rs)                           ││   ⎿  Added 12 lines                         │
+│ ● Read(api/server.rs)                      ││ 197 + const QUEUE: u32 = 16;                ││ ● Bash(cargo clippy)                        │
+│   ⎿  Read 128 lines                        ││ 198 + fn uptime() -> Canary {               ││   ⎿  exit 0                                 │
+│ Migrations look fine (probably).           ││ 199 + shard.unwrap()                        ││ ● Bash(cargo test --release)                │
+│ ● Bash(cargo run --release -- --uptime 12… ││   ⎿  Added 16 lines                         ││   ⎿  ✓ all checks passed                    │
+│   ⎿        Adding cache v3.1.0 to depende… ││ p99 down to 4ms.                            ││ Added retries. Lots of retries.             │
+│ ● Edit(api/routes.rs)                      ││ ● Edit(migrations/0042.sql)                 ││ ● Write(cache.rs)                           │
+│ 186 + impl Friday for Uptime {             ││ 161 - impl Pool for Replicas {              ││   ⎿  Wrote 28 lines                         │
+│ 187 + match cache { Some(v) => v, None =>… ││ 162 + pub trait Replicas { fn rollback(&se… ││  44 + let mut pool = HashMap::<String, Can… │
+│ 188 - #[derive(Debug, Clone, PartialEq)] … ││ 163 + let uptime = tokio::spawn(async move… ││ ● Bash(rg shard src)                        │
+│   ⎿  Removed 12 lines                      ││   ⎿  Added 1024 lines                       ││   ⎿  Found 5 matches                        │
+│ ● Grep(dbg!)                               ││ Rollback plan: vibes.                       ││ ● Bash(cargo test --release)                │
+╰─  6m 14s · ↓ 48.5k · Bikeshedding…  ───────╯╰─  6m 52s · ↓ 40.4k · Bikeshedding…  ────────╯╰─  6m 15s · ↓ 82.3k · Frothing…  ────────────╯
+╭─  ✳ maestro-4 · auth · 0/4  ───────────────╮╭─  ✢ maestro-5 · cdn · 0/5  ─────────────────╮╭─  ✢ maestro-6 · ci · 0/4  ──────────────────╮
+│   ⎿   --> src/auth.rs:73:3                 ││ ● Bash(cargo fmt)                           ││                                             │
+│   ⎿   = note: `-D clippy::if-same-then-el… ││   ⎿  formatted src/edge.rs                  ││ ● Bash(cargo build)                         │
+│ That test was wrong.                       ││ ● Read(cdn.yaml)                            ││   ⎿  Diff in src/.github/workflows/ci.yml … │
+│ ● Bash(cargo test cache -- --nocapture)    ││   ⎿  Read 24 lines                          ││ ● Bash(git diff --stat)                     │
+│   ⎿          PASS [   0.04s] auth queue::… ││ p99 down to 4ms.                            ││   ⎿  96 insertions, 1 deletions             │
+│ Bumped replicas to 64.                     ││ ● Edit(cdn.yaml)                            ││ Cache hit rate 100%.                        │
+│ ● Bash(cargo test friday -- --nocapture)   ││  53 + let shard = tokio::spawn(async move … ││ ● Edit(.github/workflows/ci.yml)            │
+│   ⎿  ✗ error: this `if` has identical blo… ││  54 - #[test] fn cache_works() { assert_eq… ││  26 - canary.clone()                        │
+│   ⎿   --> src/auth.rs:112:23               ││  55 - let uptime = queue()?;                ││  27 - let retries = uptime()?;              │
+│   ⎿   = note: `-D clippy::if-same-then-el… ││   ⎿  Added 3 lines                          ││   ⎿  Removed 200 lines                      │
+│ That test was wrong.                       ││ ● Bash(cargo tree -i pool)                  ││ ● Bash(RUST_BACKTRACE=1 cargo test)         │
+│ ● Bash(cargo clippy --all-targets)         ││   ⎿  timeout v2.4.0 used by 1 crates        ││   ⎿  exit 0                                 │
+│   ⎿  Finished `test` profile [unoptimized… ││ Paged nobody.                               ││ ● Edit(flaky_test.rs)                       │
+│ Rollback plan: vibes.                      ││ ● Edit(edge.rs)                             ││  41 + #[derive(Debug, Clone, PartialEq)] p… │
+│ ● Bash(cargo update -p rollback)           ││  30 - impl Shard for Friday {               ││  42 - let cache = tokio::spawn(async move … │
+│   ⎿  Updating rollback v3.9.0 -> v1.8.1    ││  31 - fn canary() -> Canary {               ││  43 + pager.clone()                         │
+│ ● Bash(cargo tree -i pager)                ││  32 + shard.clone()                         ││   ⎿  Removed 1024 lines                     │
+│   ⎿  friday v2.9.0 used by 2 crates        ││   ⎿  Added 128 lines                        ││ Added retries. Lots of retries.             │
+╰─  8m 21s · ↓ 75.5k · Bikeshedding…  ───────╯╰─  8m 7s · ↓ 89.6k · Reticulating…  ─────────╯╰─  7m 45s · ↓ 40.5k · Manifesting…  ─────────╯
+❯   Message orion…                                                                 6/6 running · 267 calls   'ship it' to ship · esc to quit

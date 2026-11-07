@@ -3,7 +3,20 @@
 from importlib.metadata import version
 
 from agentic_larp._cli import build_parser, fit_agents, main
+from agentic_larp._draw import render_entry
 from agentic_larp._errors import GrammarError, LarpError
+from agentic_larp._events import (
+    AgentFinished,
+    AgentSpawned,
+    Converged,
+    Event,
+    EventBus,
+    LineShown,
+    Report,
+    ScopeCreep,
+    ShipStarted,
+    TodoDone,
+)
 from agentic_larp._flow import (
     END,
     FLOW,
@@ -63,7 +76,18 @@ from agentic_larp._stages import (
     WorkStage,
     WrapStage,
 )
-from agentic_larp._wall import SPOTLIGHT_HOLD, Wall, render_entry
+from agentic_larp._wall import SPOTLIGHT_HOLD, Wall
+from agentic_larp._widgets import (
+    REGIONS,
+    WIDGET_ENTRY_POINT_GROUP,
+    AgentPanel,
+    FooterWidget,
+    HeaderWidget,
+    PanelWidget,
+    SwarmWidget,
+    Widget,
+    widget_registry,
+)
 
 __all__ = [
     "BOUND_SYMBOLS",
@@ -71,39 +95,57 @@ __all__ = [
     "FLOW",
     "PHASES",
     "POLICY_ENTRY_POINT_GROUP",
+    "REGIONS",
     "REQUIRED_SYMBOLS",
     "SCENARIOS",
     "SPOTLIGHT_HOLD",
     "STAGE_ENTRY_POINT_GROUP",
     "TOOLCHAINS",
+    "WIDGET_ENTRY_POINT_GROUP",
     "AbandonStage",
     "Agent",
+    "AgentFinished",
+    "AgentPanel",
+    "AgentSpawned",
     "ChoicePolicy",
+    "Converged",
+    "Event",
+    "EventBus",
+    "FooterWidget",
     "Grammar",
     "GrammarError",
     "Grid",
+    "HeaderWidget",
     "Intern",
     "KeySource",
     "Keys",
     "LarpError",
     "LaunchStage",
+    "LineShown",
     "LogLine",
+    "PanelWidget",
     "PhasedPolicy",
     "PlanStage",
     "RandomPolicy",
     "ReadyStage",
     "ReceiptStage",
+    "Report",
     "RunMode",
     "Scenario",
+    "ScopeCreep",
     "ScreenStage",
     "Session",
     "ShipStage",
+    "ShipStarted",
     "Sim",
     "Stage",
     "SwarmSettings",
+    "SwarmWidget",
     "Todo",
+    "TodoDone",
     "VariedPolicy",
     "Wall",
+    "Widget",
     "WorkStage",
     "WrapStage",
     "__version__",
@@ -127,6 +169,7 @@ __all__ = [
     "run_screen",
     "stage_registry",
     "task_words",
+    "widget_registry",
 ]
 
 __version__ = version("agentic-larp")

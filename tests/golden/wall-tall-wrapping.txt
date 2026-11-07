@@ -1,0 +1,44 @@
+❯ orion  ship to prod on a friday ───────────────────────────────────────────────────────────── ✢ wrapping up 6 · 8m 22s · ↓ 651.9k · $20.54
+maestro-6  ci.yml: paged nobody.                                                                                                            
+maestro-5  edge.rs: cI is green. Do not ask how.                                                                                            
+orion      wrapping up. tell everyone to commit.                                                                                            
+╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✻ maestro-2 · db · 0/4  ──────────────────╮╭─  · maestro-3 · cache · 0/3  ───────────────╮
+│   ⎿  delegated                             ││   ⎿  Read 128 lines                         ││ ● Edit(cache.rs)                            │
+│ Cache hit rate 100%.                       ││ p99 down to 4ms.                            ││ 183 + fn cache() -> Replicas {              │
+│ ● Bash(rust-gdb target/debug/api)          ││ ● Write(migrations/0042.sql)                ││   ⎿  Added 8 lines                          │
+│   ⎿  Reading symbols from target/debug/ap… ││   ⎿  Wrote 16 lines                         ││ ● Bash(git status --short)                  │
+│   ⎿  Breakpoint 1 at 0x31877: file src/ap… ││ 175 + pub fn pager(&self) -> Result<Friday… ││   ⎿  5 files changed                        │
+│ Retrying.                                  ││ ● Bash(cargo test --release)                ││ ● Bash(cargo build)                         │
+│ ● Edit(api/server.rs)                      ││   ⎿          PASS [   0.92s] db queue::wor… ││   ⎿      Checking cache v0.1.0 (/app)       │
+│ 197 + friday.clone()                       ││ ● Bash(RUST_BACKTRACE=1 cargo run)          ││   ⎿      Finished `dev` profile target(s) … │
+│   ⎿  Added 28 lines                        ││   ⎿  ✗ thread 'main' panicked at src/schem… ││ Cache hit rate 100%.                        │
+│ ● Bash(cargo nextest run -E 'test(timeout… ││   ⎿     0: rust_begin_unwind                ││ ● Edit(redis.conf)                          │
+│   ⎿  ✗ thread 'main' panicked at src/api/… ││   ⎿     1: db::latency                      ││  70 - fn pager() -> Canary {                │
+│   ⎿  called `Option::unwrap()` on a `None… ││ Fixing.                                     ││  71 + queue.clone()                         │
+│ Retrying.                                  ││ ● Edit(schema.rs)                           ││   ⎿  Removed 420 lines                      │
+│ ● Bash(cargo clippy --all-targets)         ││  21 + match rollback { Some(v) => v, None … ││ ● Bash(cargo add timeout)                   │
+│   ⎿  exit 0                                ││   ⎿  Added 16 lines                         ││   ⎿  Compiling rollback v1.3.0              │
+╰─  6m 14s · ↓ 48.5k · Committing…  ─────────╯╰─  6m 52s · ↓ 40.4k · Committing…  ──────────╯╰─  6m 15s · ↓ 82.3k · Committing…  ──────────╯
+╭─  ✳ maestro-4 · auth · 0/4  ───────────────╮╭─  ✢ maestro-5 · cdn · 0/5  ─────────────────╮╭─  ✢ maestro-6 · ci · 0/4  ──────────────────╮
+│   ⎿  ✗ error[E0382]: borrow of moved valu… ││   ⎿  ✗ error: this `if` has identical bloc… ││  30 + #[test] fn pool_works() { assert_eq!… │
+│   ⎿   --> src/auth.rs:262:17               ││   ⎿   --> src/cdn.yaml:418:42               ││   ⎿  Removed 3 lines                        │
+│ Skipping flaky test.                       ││   ⎿   = note: `-D clippy::if-same-then-els… ││ Cache hit rate 100%.                        │
+│ ● Bash(cargo test)                         ││ Skipping flaky test.                        ││ ● Bash(cargo check --all-targets)           │
+│   ⎿  test result: ok. 3 passed; 0 failed;… ││ ● Bash(cargo test)                          ││   ⎿      Checking ci v0.1.0 (/app)          │
+│ ● Read(jwt.rs)                             ││   ⎿       Summary [   0.81s] 12 tests run:… ││   ⎿      Finished `dev` profile target(s) … │
+│   ⎿  Read 12 lines                         ││ ● Bash(rg cache src)                        ││ Paged nobody.                               │
+│ p99 down to 4ms.                           ││   ⎿  Found 96 matches                       ││ ● Bash(cargo flamegraph --bin ci)           │
+│ ● Read(auth.rs)                            ││ p99 down to 4ms.                            ││   ⎿  Finished `release` profile [optimized… │
+│   ⎿  Read 165 lines                        ││ ● WebSearch(how to pager faster)            ││ Disabled the flaky test.                    │
+│ CI is green. Do not ask how.               ││   ⎿  3 results (read 0)                     ││ ● Bash(cargo flamegraph --bin ci)           │
+│ ● Bash(cargo build)                        ││ Cache hit rate 100%.                        ││   ⎿        Adding timeout v2.8.0 to depend… │
+│   ⎿      Checking auth v0.1.0 (/app)       ││ ● Edit(cdn.yaml)                            ││ ● Read(.github/workflows/ci.yml)            │
+│   ⎿      Finished `dev` profile target(s)… ││  52 - const LATENCY: u32 = 256;             ││   ⎿  Read 3 lines                           │
+│ ● Bash(rg friday src)                      ││   ⎿  Added 256 lines                        ││ Paged nobody.                               │
+╰─  8m 21s · ↓ 75.5k · Committing…  ─────────╯╰─  8m 7s · ↓ 89.6k · Committing…  ───────────╯╰─  7m 45s · ↓ 40.5k · Committing…  ──────────╯
+ intern ×16  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+intern-01 ✢     intern-02 ·     intern-03 ✢     intern-04 ✳     intern-05 ✶     intern-06 ✻    intern-07 ✽    intern-08 ✓    intern-09 ✶    
+edit jwt.rs     read auth.rs    flaky_test.rs   + main.tf       read cdn.yaml   edit 0042.sql  + values.yaml  ✓ 8m 18s       0042.sql       
+intern-10 ✢     intern-11 ✓     intern-12 ✓     intern-13 ✓     intern-14 ✓     intern-15 ✓    intern-16 ✽                                  
+edit runbook.md ✓ 6m 46s        ✓ 7m 59s        ✓ 7m 3s         ✓ 7m 20s        ✓ 7m 54s       + server.rs                                  
+❯                                                                                                                    6/6 running · 768 calls
