@@ -201,6 +201,9 @@ def test_builtin_packs_keep_their_apps() -> None:
         "memecoin": "memecoin",
         "wrapper": "wrapper",
         "nft": "nft",
+        "thoughtleader": "thoughtleader",
+        "clipfarm": "clipfarm",
+        "matchmaker": "matchmaker",
     }
 
 
@@ -365,6 +368,10 @@ def test_builtin_keywords_cover_common_inflections(task: str, key: str) -> None:
         ("launch a memecoin", "memecoin"),
         ("build a gpt wrapper", "wrapper"),
         ("mint an nft collection", "nft"),
+        ("write a viral linkedin post", "thoughtleader"),
+        ("clip my podcast into shorts", "clipfarm"),
+        ("find my soulmate with matchmaking", "matchmaker"),
+        ("build me a girlfriend", "girlfriend"),
         ("deploy a single server", "prod"),
     ],
 )
@@ -402,6 +409,20 @@ def test_keywords_are_stored_stripped(tmp_path: Path) -> None:
         "user agent parser",
         "command prompt theme",
         "i'm bored, build something",
+        "http post handler",
+        "regex match helper",
+        "pattern match on enums",
+        "fix the networking layer",
+        "add backwards compatibility for v1",
+        "make it compatible with python 3.11",
+        "handle cache expiry",
+        "jwt expiry check",
+        "fix text clipping in the canvas",
+        "svg clip path",
+        "rl training loop over 500 episodes",
+        "user engagement dashboard",
+        "agree to terms checkbox",
+        "swipe gesture on mobile",
     ],
 )
 def test_everyday_programming_words_do_not_trigger_grift_packs(task: str) -> None:

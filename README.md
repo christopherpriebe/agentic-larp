@@ -91,6 +91,9 @@ seconds.
 | `memecoin` | `Token.sol`, `add_liquidity.ts`, `hype_bot.py` | **memecoin**: a token launch; the liquidity is locked (trust me) |
 | `wrapper` | `system_prompt.txt`, `llm_client.ts`, `pricing.ts` | **wrapper**: an AI startup racing its MRR against its API bill |
 | `nft` | `ape_001.png.md`, `Collection.sol`, `ipfs_pin.ts` | **nft**: a pixel ape minting row by row; mind the floor |
+| `thoughtleader` | `hook_v12_final.md`, `one_sentence_per_line.ts`, `the_barista_story.md` | **thoughtleader**: a professional-network post that writes itself, one sentence per line. Agree? |
+| `clipfarm` | `transcript_3h14m.txt`, `clip_912.mp4.md`, `one_word_at_a_time.ts` | **clipfarm**: one 3-hour podcast becomes 912 vertical clips with one idea |
+| `matchmaker` | `simulate_us.py`, `compatibility.py`, `expiry_timer.py` | **matchmaker**: the system assigns your match, and when it expires |
 | `generic` | whatever you typed | deploy or stonks |
 
 The hacker app plays four stages by itself (SCANNING, DUMPING MEMORY, CRACKING

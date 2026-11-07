@@ -1,0 +1,61 @@
+[pack]
+key = "thoughtleader"
+task = "write a viral linkedin post"
+keywords = [
+  "linkedin", "thoughtleader", "thoughtleaders", "thoughtleadership", "broetry",
+  "viral", "influencer", "influencers", "recruiter", "recruiters",
+  "humblebrag",
+]
+app = "thoughtleader"
+
+[areas]
+drafts = ["hook_v12_final.md", "humble_opening.md", "story_about_my_dog.md"]
+formatting = ["one_sentence_per_line.ts", "emoji_bullets.ts"]
+hooks = ["i_fired_my_best_engineer.md", "unpopular_opinion.md"]
+lessons = ["what_it_taught_me.md", "b2b_sales_parallels.md", "the_barista_story.md"]
+engagement = ["comment_pod.json", "agree_cta.ts", "reaction_farm.py"]
+analytics = ["impressions.ts", "humblebrag_density.ts"]
+network = ["connection_requests.csv", "recruiter_dms.md"]
+brand = ["personal_brand.md", "headshot_final_v3.png.md"]
+
+[rules]
+word = [
+  "hook", "humbled", "journey", "synergy", "impressions", "authentic",
+  "grateful", "pivot", "hustle", "thrilled", "leadership", "reaction", "story",
+  "lesson",
+]
+code = [
+  "const #word# = await composePost(#word#);",
+  "post.lines.push('#word#');",
+  "export function #word#(text: string) {",
+  "if (!#word#) throw new Error('#word#');",
+  "const MAX_#word.upper# = #n#;",
+  "await sleep(#n#); // wait for the algorithm",
+  "// TODO: add a line break",
+  "humblebragDensity += #n#;",
+  "reactions.add('👏', #n#);",
+]
+command = [
+  "npm run build",
+  "npm run schedule -- --time 07:59",
+  "npx tsc --noEmit",
+  "python reaction_farm.py --pod 40",
+  "git commit -am 'more line breaks'",
+]
+quip = [
+  "Added a line break. Impressions up 12%.",
+  "Started with 'I'm humbled'.",
+  "Nobody was fired. Hook stays.",
+  "Turned a sandwich into a leadership lesson.",
+  "Ended with 'Agree?'.",
+  "Emoji pointing down: added.",
+  "The comment pod is online.",
+  "Rewrote it. Same humblebrag.",
+  "Every sentence now has its own line.",
+]
+final = [
+  "Post is live.",
+  "Humblebrag density: on target.",
+  "Agree?",
+  "Recruiter is typing...",
+]

@@ -25,6 +25,9 @@ _BUILTIN_PACKS = (
     "memecoin",
     "wrapper",
     "nft",
+    "thoughtleader",
+    "clipfarm",
+    "matchmaker",
 )
 _DEFAULT_APP = "deploy"
 _RESERVED_KEY = "generic"
