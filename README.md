@@ -45,6 +45,9 @@ larp                              # random scenario
 larp "build me a girlfriend"      # scenario picked from keywords in your task
 larp "uber for cats"              # anything else: agents work on cats.ts, Uber.tsx, ...
 larp -s hacker                    # force a scenario
+larp -s hacker -s prod            # mix packs: agents alternate between them
+larp --grid 3x2                   # six feeds on screen, a spotlight rotates through the rest
+larp --pack ./zebra.toml -s zebra # your own pack
 larp --then "cmatrix"             # after shipping, run any real command
 larp --play hacker                # skip the agents, go straight to an app
 larp --auto 8                     # ships itself after 8s (for screen recordings)
@@ -82,6 +85,69 @@ seconds.
 
 The hacker typer types out agentic-larp's own source code, so it's technically
 real code.
+
+### Grid and spotlight
+
+`--grid COLSxROWS` shows exactly that many feeds (`--grid 3x2` is six). With no
+`-n`, that many agents run. With more agents than cells (`larp --grid 3x2 -n 20`),
+a spotlight rotates through them: a feed stays on screen for at least two
+seconds, then the agent that has waited longest takes its place (ties go to the
+busiest). Swaps are staggered one cell at a time. The header still counts every
+agent.
+
+### Writing your own pack
+
+What the agents say and do comes from a Tracery-style grammar in a TOML pack
+file. Built-in packs live in `src/agentic_larp/packs/`; yours go in
+`~/.config/agentic-larp/packs/` (or `$XDG_CONFIG_HOME/agentic-larp/packs/`),
+where every `*.toml` is loaded at startup (a broken one prints a warning and is
+skipped), or anywhere with `--pack FILE` (repeatable; a broken one is an
+error). Later packs replace earlier ones with the same key: built-ins, then the
+config directory, then `--pack`. `larp --list` shows them all, and repeating
+`-s` deals agents round-robin across the chosen packs.
+
+```toml
+[pack]
+key = "zebra"                 # required: the name for -s
+task = "build me a zebra"     # required: shown in the header
+keywords = ["zebra", "stripes"]  # optional: a task containing one picks this pack
+app = "stonks"                # optional: launched after shipping (default deploy)
+
+[areas]                       # required: one agent per area, dealt in order
+stripes = ["stripes.py", "pattern.py"]
+
+[areas.herd]                  # or a table, with rules for that area only
+files = ["herd.py"]
+rules = { quip = ["Herd assembled."] }
+
+[rules]                       # optional: replaces same-named rules in the base
+word = ["stripe", "mane", "hoof"]
+quip = ["Stripes are black. Probably.", { text = "Rare quip.", weight = 0.2 }]
+final = ["Zebra shipped."]
+code = ["#word# = #n#", "import #word#"]
+command = ["pytest -q", "make zebra"]
+```
+
+A rule is a string, or a list of alternatives; each alternative is a string or
+a `{ text = "...", weight = 2 }` table (default weight 1, must be positive).
+Text refers to other rules as `#name#`, optionally with modifiers applied left
+to right: `#word.capitalize#` (`Red_flags`), `#word.camel#` (`RedFlags`),
+`#word.upper#`. A lone `#` is just a `#`. These names are bound by the
+simulation and need no rule: `file`, `area`, `agent`, `intern`, `n`. A pack must
+end up with the rules `action`, `quip`, `final`, and `intern_task`; the base
+grammar supplies them and the machinery behind them (edits, shell runs that
+fail and recover, reads, writes, greps, web searches, delegation to interns),
+so a pack mostly provides vocabulary: `word`, `code`, `command`, `quip`,
+`final`.
+
+An `action` expands to a script with one tagged line per row:
+
+| Tag | Shows |
+| --- | --- |
+| `tool: Name(argument)` | a tool call such as `Edit(face.cpp)` |
+| `add: code` / `del: code` | a green or red diff line, numbered in order |
+| `ok:` / `fail:` / `note:` | a result line in green, red, or dim |
+| `say:` | a line of agent chatter |
 
 ### Writing your own app
 
@@ -163,8 +229,14 @@ milliseconds.
 src/agentic_larp/
 ├── __init__.py      # public API, re-exported from the private modules
 ├── _cli.py          # the larp command
+├── _errors.py       # LarpError, GrammarError
+├── _grammar.py      # grammars and activity scripts
+├── _grid.py         # the --grid spec
+├── _log.py          # LogLine
+├── _packs.py        # pack loading and discovery
+├── packs/           # built-in packs (TOML) and the base grammar
 ├── _keys.py         # non-blocking keyboard input (POSIX and Windows)
-├── _scenarios.py    # scenario packs
+├── _scenarios.py    # picking and generating scenarios
 ├── _sim.py          # the fake agents
 ├── _theater.py      # the agent wall and the ship-it stages
 └── apps/            # payoff apps; AppContext, Screen, run_loop are public
