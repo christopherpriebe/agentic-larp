@@ -1,0 +1,56 @@
+[pack]
+key = "clipfarm"
+task = "clip my podcast into shorts"
+keywords = [
+  "podcast", "podcasts", "clips", "clipfarm", "shorts",
+  "reels", "captions", "mic",
+]
+app = "clipfarm"
+
+[areas]
+source = ["episode_214_raw.wav.md", "transcript_3h14m.txt"]
+clips = ["clip_001.mp4.md", "clip_912.mp4.md", "same_four_seconds.mp4.md"]
+captions = ["captions.srt", "one_word_at_a_time.ts", "fire_emoji.ts"]
+audio = ["waveform.ts", "100_percent.wav.md"]
+thumbnails = ["thumb_shocked_face.png.md", "red_arrow.psd.md"]
+titles = ["titles.md", "mindset_hooks.md", "you_wont_believe.txt"]
+payouts = ["rate_card.ts", "pending_balance.ts"]
+distribution = ["post_queue.ts", "link_in_bio.md"]
+
+[rules]
+word = [
+  "clip", "mindset", "hook", "caption", "episode", "views", "short", "founder", "grind", "podcast", "crazy", "banger",
+]
+code = [
+  "const #word# = await extract(#word#);",
+  "clips.push(clip(0, 4)); // same four seconds",
+  "export function #word#(episode: Episode) {",
+  "if (!#word#) throw new Error('#word#');",
+  "const MAX_#word.upper# = #n#;",
+  "await sleep(#n#); // wait for views",
+  "// TODO: find a second idea",
+  "caption: '#word#'.toUpperCase(),",
+]
+command = [
+  "ffmpeg -i episode.mp4 -ss 0 -t 4 clip.mp4",
+  "npm run build",
+  "yt-dlp episode_214",
+  "git commit -am 'more clips'",
+  "python chop.py --count 912",
+]
+quip = [
+  "Extracted 912 clips. One idea.",
+  "Every clip starts with 'so'.",
+  "Captions now one word at a time.",
+  "Guest bio: 'founder' (of the podcast).",
+  "Added fire emoji. Retention up 0.1%.",
+  "Waveform is two guys saying 100%.",
+  "Pending payout: $0.40.",
+  "Link in bio.",
+]
+final = [
+  "912 clips shipped.",
+  "Views: pending.",
+  "Full episode: 31 views.",
+  "Unique ideas: 1.",
+]

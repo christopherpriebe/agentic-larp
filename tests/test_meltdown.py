@@ -28,6 +28,9 @@ SUCCESS_GOODBYES = {
     "memecoin": "100x",
     "wrapper": "passed the API bill",
     "nft": "minted out",
+    "thoughtleader": "thank your barista",
+    "clipfarm": "full episode got",
+    "matchmaker": "ordered the same dessert",
 }
 # A word each app shows on screen while it runs, and one it shows when it breaks.
 SIGNATURES = {
@@ -35,6 +38,9 @@ SIGNATURES = {
     "memecoin": ("holders", "rug"),
     "wrapper": ("MRR", "rate limit"),
     "nft": ("floor", "right-click"),
+    "thoughtleader": ("impressions", "authenticity"),
+    "clipfarm": ("clips", "that's crazy bro"),
+    "matchmaker": ("expires in", "reassigned"),
 }
 FRAME = ["hello world", "  agents  ", "", "ship it"]
 
@@ -270,6 +276,9 @@ def test_failing_call_answers_itself_when_nobody_picks_up(
         ("memecoin", ((1.0, "esc"),)),
         ("wrapper", ((1.0, "esc"),)),
         ("nft", ((1.0, "esc"),)),
+        ("thoughtleader", ((1.0, "esc"),)),
+        ("clipfarm", ((1.0, "esc"),)),
+        ("matchmaker", ((1.0, "esc"),)),
     ],
 )
 def test_escaping_before_the_break_skips_the_meltdown(
@@ -376,3 +385,14 @@ def test_wrapper_bill_stays_readable_when_it_explodes(
     assert not re.search(r"\$[\d,]{16,}", text)
     assert "rate limit" in text.lower()
     assert clock.now < 60.0
+
+
+def test_matchmaker_never_borrows_the_episode_reveal(
+    console: Console, clock: FakeClock
+) -> None:
+    context = AppContext(console=console, task="find my soulmate", auto=8.0, fps=10)
+    app_registry()["matchmaker"](context)
+    text = output(console).lower()
+    assert "rebel" not in text
+    assert "99.8" not in text
+    assert clock.now > 0

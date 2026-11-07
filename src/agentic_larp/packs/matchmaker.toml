@@ -1,0 +1,70 @@
+[pack]
+key = "matchmaker"
+task = "find my soulmate with matchmaking"
+keywords = [
+  "soulmate", "soulmates", "matchmaker", "matchmaking", "wingman", "rizz",
+  "destined",
+]
+app = "matchmaker"
+
+[areas]
+profile = ["profile.json", "bio_generator.py", "ascii_silhouette.txt"]
+simulation = ["simulate_us.py", "run_1000_dates.py", "dessert_orders.json"]
+compatibility = ["compatibility.py", "pulse_check.py", "meter.ts"]
+countdown = ["expiry_timer.py", "countdown.ts", "hours_left.json"]
+dinner = ["allotted_dinner.md", "table_for_two.py", "menu_optimizer.py"]
+notices = ["system_notices.md", "calm_voice.py", "knows_best.txt"]
+feelings = ["feelings.log", "feelings_quota.json", "sentiment.py"]
+reassign = ["reassign.py", "optimizer.py", "destiny.cfg"]
+
+[rules]
+word = [
+  "soulmate", "expiry", "destiny", "simulation", "compatibility", "pulse",
+  "dinner", "algorithm", "hands", "feelings", "rizz", "swipe", "umbrella",
+  "pairing", "quota", "optimum",
+]
+code = [
+  "#word# = #n#",
+  "import #word#",
+  "def #word#(self, #word#):",
+  "for _ in range(#n#): simulate(#word#)",
+  "if not #word#: return #word#",
+  "assert #word# <= #n#",
+  "# TODO: more #word#",
+  "log.info(#word#)",
+  "await #word#.run(#n#)",
+  "#word#.expire(hours=#n#)",
+  "del #word#  # the system knows best",
+  "return optimize(#word#, #word#)",
+]
+command = [
+  "uv run simulate --runs 1000",
+  "pytest tests/test_pairing.py",
+  "python run_1000_dates.py",
+  "ruff check .",
+  "mypy compatibility.py",
+  "make #area#",
+]
+quip = [
+  "Match: 97.3%.",
+  "Added a calm voice.",
+  "Expiry set to 11h 42m.",
+  "Dinner has been allotted.",
+  "Feelings logged (quota: generous).",
+  "Every simulation ordered tiramisu.",
+  "Hand-holding tuned to 72 bpm.",
+  "Umbrella sharing approved.",
+  "The system knows what's best.",
+  "Rizz recalibrated.",
+  "Destiny is now configurable.",
+  "Removed 400 worse matches.",
+  "Optimized the small talk.",
+]
+final = [
+  "Your match is ready.",
+  "The system is happy for you.",
+  "Expiry: not today.",
+  "Simulations agree.",
+  "Dinner is served.",
+  "Feelings logged.",
+]

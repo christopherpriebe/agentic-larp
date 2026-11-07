@@ -105,6 +105,9 @@ DESCRIPTIONS = {
     "memecoin": "a token launch: the liquidity is locked (trust me)",
     "wrapper": "an AI startup that is one API call, racing its API bill",
     "nft": "an NFT mint: a pixel ape, a floor price, and a jpeg",
+    "thoughtleader": "a professional-network post that writes itself, one sentence per line",
+    "clipfarm": "one 3-hour podcast becomes 912 vertical clips with one idea",
+    "matchmaker": "a matchmaking system assigns your match and when it expires",
 }
 
 
@@ -119,12 +122,15 @@ def app_registry() -> dict[str, App]:
     """
     from agentic_larp.apps import (  # noqa: PLC0415 - avoid an import cycle with the package
         _call,
+        _clipfarm,
         _deploy,
         _dropship,
         _hacker,
+        _matchmaker,
         _memecoin,
         _nft,
         _stonks,
+        _thoughtleader,
         _wrapper,
     )
 
@@ -137,6 +143,9 @@ def app_registry() -> dict[str, App]:
         "memecoin": _memecoin.run,
         "wrapper": _wrapper.run,
         "nft": _nft.run,
+        "thoughtleader": _thoughtleader.run,
+        "clipfarm": _clipfarm.run,
+        "matchmaker": _matchmaker.run,
     }
     for entry_point in entry_points(group=ENTRY_POINT_GROUP):
         apps[entry_point.name] = entry_point.load()
