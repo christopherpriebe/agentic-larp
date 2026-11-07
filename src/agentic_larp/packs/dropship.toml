@@ -1,0 +1,59 @@
+[pack]
+key = "dropship"
+task = "start a dropshipping store"
+keywords = [
+  "dropship", "dropships", "dropshipping", "dropshipper", "dropshippers", "shopify", "ecommerce", "e-commerce", "aliexpress",
+  "webshop", "merch", "storefront",
+]
+app = "dropship"
+
+[areas]
+catalog = ["products.json", "LedGalaxyProjector.liquid", "descriptions.md"]
+checkout = ["checkout.liquid", "upsell_popup.js", "countdown_timer.js"]
+ads = ["meta_ads.py", "tiktok_creative.md", "roas_dashboard.ts"]
+supplier = ["aliexpress_sync.py", "supplier_cache.json"]
+reviews = ["reviews.liquid", "fake_but_nice_reviews.csv"]
+shipping = ["tracking.js", "eta_calculator.ts", "six_to_eight_weeks.md"]
+payments = ["stripe_hooks.js", "refunds.py"]
+branding = ["logo.svg", "about_us.md", "founder_story.md"]
+
+[rules]
+word = [
+  "margin", "supplier", "cart", "upsell", "roas", "chargeback_risk", "sku",
+  "fulfillment", "countdown", "review", "coupon", "drop", "pixel", "funnel",
+]
+code = [
+  "const #word# = await fetchSupplier('#word#');",
+  "cart.add({ sku: '#word#', qty: #n# });",
+  "price = cost * #n#;",
+  "{% if #word# %}",
+  "<div class=\"#word#\">Only 3 left!</div>",
+  "setTimeout(() => showPopup('#word#'), #n#);",
+  "export const #word.camel# = #n#;",
+  "// TODO: stop lying about #word#",
+  "if (!#word#) return res.status(200).send('shipped');",
+]
+command = [
+  "npm run build",
+  "shopify theme push",
+  "node sync_suppliers.js",
+  "git commit -am 'add urgency'",
+  "stripe listen",
+]
+quip = [
+  "Margin: 1,500%. Cost: $3.12.",
+  "Added a fake countdown timer.",
+  "Ships in 6-8 weeks. Said 2-3 days.",
+  "ROAS is improving (it is 0.8).",
+  "Renamed the product. Same product.",
+  "Only 3 left! (we have 40,000).",
+  "Reviews: 4.9 stars. Written Tuesday.",
+  "Supplier replied with a thumbs up.",
+  "Founder story is 70% true.",
+]
+final = [
+  "Store is live.",
+  "Checkout converts. Nobody asks why.",
+  "Tracking page says 'in transit'.",
+  "First sale: my cousin.",
+]

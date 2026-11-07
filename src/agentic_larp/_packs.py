@@ -16,7 +16,16 @@ from agentic_larp._grammar import (
     parse_activity,
 )
 
-_BUILTIN_PACKS = ("girlfriend", "startup", "hacker", "prod")
+_BUILTIN_PACKS = (
+    "girlfriend",
+    "startup",
+    "hacker",
+    "prod",
+    "dropship",
+    "memecoin",
+    "wrapper",
+    "nft",
+)
 _DEFAULT_APP = "deploy"
 _RESERVED_KEY = "generic"
 _SMOKE_ACTIONS = 25
@@ -143,6 +152,7 @@ def _parse_scenario(text: str, label: str, base: Grammar) -> Scenario:
     keywords = _text_list(label, "[pack] keywords", pack.get("keywords", []))
     if not all(keyword.strip() for keyword in keywords):
         raise _fail(label, "[pack] keywords has an empty keyword")
+    keywords = tuple(keyword.strip() for keyword in keywords)
     scenario = Scenario(
         key=pack["key"],
         task=pack["task"],

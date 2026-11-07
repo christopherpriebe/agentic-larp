@@ -1,0 +1,59 @@
+[pack]
+key = "memecoin"
+task = "launch a memecoin"
+keywords = [
+  "memecoin", "memecoins", "coin", "coins", "crypto",
+  "rug", "rugpull", "doge", "shitcoin", "airdrop", "tokenomics", "defi",
+]
+app = "memecoin"
+
+[areas]
+contract = ["Token.sol", "Ownable.sol", "mint_unlimited.sol"]
+liquidity = ["add_liquidity.ts", "lp_lock_trust_me.sol"]
+tokenomics = ["tokenomics.md", "burn_schedule.ts"]
+telegram = ["hype_bot.py", "admin_rights.json", "wen_moon.md"]
+website = ["index.html", "roadmap_q1_q4.md", "whitepaper.pdf.md"]
+whales = ["whale_alerts.ts", "shill_wallets.json"]
+dex = ["dex_listing.ts", "slippage.ts"]
+marketing = ["influencer_dms.md", "dog_photo.png.md"]
+
+[rules]
+word = [
+  "moon", "diamond", "hodl", "wagmi", "slippage", "liquidity", "holders",
+  "gas", "dev", "tokenomics", "airdrop", "lambo", "ape", "burn",
+]
+code = [
+  "uint256 public #word# = #n#;",
+  "function #word#() external onlyOwner {",
+  "balances[msg.sender] += #n# * 1e18;",
+  "require(!#word#, \"not today\");",
+  "emit Transfer(address(0), owner, #n#);",
+  "// TODO: renounce ownership (later)",
+  "const #word# = await router.#word#(#n#);",
+  "mapping(address => uint256) public #word#;",
+  "pragma solidity ^0.8.20;",
+]
+command = [
+  "npx hardhat compile",
+  "npx hardhat run scripts/deploy.ts --network mainnet",
+  "forge test",
+  "cast send --value 0.1ether",
+  "python hype_bot.py",
+]
+quip = [
+  "LP locked 🔒 (trust me).",
+  "Renounced ownership. Kept a backdoor.",
+  "Whitepaper is a single page.",
+  "Roadmap: moon, then more moon.",
+  "Telegram is at 40k. 39k are bots.",
+  "Tokenomics: 1 trillion supply. Dev holds some.",
+  "Added a dog.",
+  "Slippage set to 99%.",
+  "Audit: pending (forever).",
+]
+final = [
+  "Token is live.",
+  "Chart is green. Do not refresh.",
+  "Dev wallet is fine.",
+  "We are so early.",
+]

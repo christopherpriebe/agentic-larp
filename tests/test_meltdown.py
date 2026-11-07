@@ -1,4 +1,5 @@
 import random
+import re
 from collections.abc import Callable
 
 import pytest
@@ -23,6 +24,17 @@ SUCCESS_GOODBYES = {
     "hacker": "connection closed",
     "deploy": "shipped.",
     "stonks": "closed at an all-time high",
+    "dropship": "orders shipped",
+    "memecoin": "100x",
+    "wrapper": "passed the API bill",
+    "nft": "minted out",
+}
+# A word each app shows on screen while it runs, and one it shows when it breaks.
+SIGNATURES = {
+    "dropship": ("orders", "chargeback"),
+    "memecoin": ("holders", "rug"),
+    "wrapper": ("MRR", "rate limit"),
+    "nft": ("floor", "right-click"),
 }
 FRAME = ["hello world", "  agents  ", "", "ship it"]
 
@@ -254,6 +266,10 @@ def test_failing_call_answers_itself_when_nobody_picks_up(
         ("stonks", ((1.0, "esc"),)),
         ("call", ((0.5, "x"), (1.5, "esc"))),
         ("hacker", ((1.0, "esc"),)),
+        ("dropship", ((1.0, "esc"),)),
+        ("memecoin", ((1.0, "esc"),)),
+        ("wrapper", ((1.0, "esc"),)),
+        ("nft", ((1.0, "esc"),)),
     ],
 )
 def test_escaping_before_the_break_skips_the_meltdown(
@@ -275,3 +291,88 @@ def test_failing_hacker_never_promises_access(
     text = run_app("hacker", console, Outcome.FAIL)
     assert "access granted" not in text.lower().split("trace complete")[0]
     assert clock.now > 0
+
+
+@pytest.mark.parametrize("name", sorted(SIGNATURES))
+def test_grift_apps_show_their_hustle(
+    name: str, console: Console, clock: FakeClock
+) -> None:
+    context = AppContext(console=console, task="get rich quick", auto=8.0, fps=10)
+    app_registry()[name](context)
+    text = output(console).lower()
+    assert SIGNATURES[name][0].lower() in text
+    assert SIGNATURES[name][1].lower() not in text
+    assert clock.now <= 9.0
+
+
+@pytest.mark.parametrize("name", sorted(SIGNATURES))
+def test_grift_apps_fail_in_their_own_way(
+    name: str, console: Console, clock: FakeClock
+) -> None:
+    text = run_app(name, console, Outcome.FAIL)
+    assert SIGNATURES[name][1].lower() in text.lower()
+    assert has_death(text)
+    assert clock.now < 60.0
+
+
+def test_failing_hacker_footer_tells_the_truth(
+    console: Console, clock: FakeClock
+) -> None:
+    text = run_app("hacker", console, Outcome.FAIL)
+    assert "tab: access denied" in text
+    assert "tab: nothing" not in text
+    assert clock.now > 0
+
+
+def test_hanging_up_ends_the_call_promptly(
+    console: Console,
+    clock: FakeClock,
+    make_keys: Callable[..., ScriptedKeys],
+) -> None:
+    keys = make_keys(
+        (0.5, "x"),
+        *((1.0, key) for key in "i love you"),
+        (1.0, "enter"),
+        (1.1, "esc"),
+    )
+    text = run_app("call", console, Outcome.SUCCESS, keys)
+    assert "says goodnight" in text
+    # her reply to "i love you" was queued, then dropped by the hang-up
+    assert "i love you too" not in text
+    assert "writing that to memory.cpp" not in text
+    assert clock.now < 10.0
+
+
+def test_task_text_is_never_read_as_markup(console: Console, clock: FakeClock) -> None:
+    for name in sorted(SIGNATURES):
+        context = AppContext(
+            console=console, task="mint an nft [/] of [cat]", auto=2.0, fps=10
+        )
+        app_registry()[name](context)
+    assert "[/] of [cat]" in output(console)
+    assert clock.now > 0
+
+
+def test_memecoin_price_stays_finite_however_long_it_runs(
+    console: Console,
+    clock: FakeClock,
+    make_keys: Callable[..., ScriptedKeys],
+) -> None:
+    keys = make_keys(*((i * 0.2, "m") for i in range(1500)))
+    context = AppContext(
+        console=console, task="launch a memecoin", auto=300.0, fps=10, keys=keys
+    )
+    app_registry()["memecoin"](context)
+    text = output(console).lower()
+    assert "inf" not in text.replace("info", "")
+    assert "nan" not in text
+    assert clock.now >= 300.0
+
+
+def test_wrapper_bill_stays_readable_when_it_explodes(
+    console: Console, clock: FakeClock
+) -> None:
+    text = run_app("wrapper", console, Outcome.FAIL)
+    assert not re.search(r"\$[\d,]{16,}", text)
+    assert "rate limit" in text.lower()
+    assert clock.now < 60.0

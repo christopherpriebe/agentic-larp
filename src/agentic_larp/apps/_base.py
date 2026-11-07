@@ -101,6 +101,10 @@ DESCRIPTIONS = {
     "hacker": "hack the planet: scan, dump, crack, trace (mash keys to go faster)",
     "deploy": "a global prod rollout that definitely won't page anyone",
     "stonks": "your startup's stock, which only goes up",
+    "dropship": "a dropshipping store: every markup is 1,500%, shipping is 6-8 weeks",
+    "memecoin": "a token launch: the liquidity is locked (trust me)",
+    "wrapper": "an AI startup that is one API call, racing its API bill",
+    "nft": "an NFT mint: a pixel ape, a floor price, and a jpeg",
 }
 
 
@@ -113,13 +117,26 @@ def app_registry() -> dict[str, App]:
     Returns:
         App name mapped to its ``run(context)`` function.
     """
-    from agentic_larp.apps import _call, _deploy, _hacker, _stonks  # noqa: PLC0415 - avoid an import cycle with the package
+    from agentic_larp.apps import (  # noqa: PLC0415 - avoid an import cycle with the package
+        _call,
+        _deploy,
+        _dropship,
+        _hacker,
+        _memecoin,
+        _nft,
+        _stonks,
+        _wrapper,
+    )
 
     apps: dict[str, App] = {
         "call": _call.run,
         "hacker": _hacker.run,
         "deploy": _deploy.run,
         "stonks": _stonks.run,
+        "dropship": _dropship.run,
+        "memecoin": _memecoin.run,
+        "wrapper": _wrapper.run,
+        "nft": _nft.run,
     }
     for entry_point in entry_points(group=ENTRY_POINT_GROUP):
         apps[entry_point.name] = entry_point.load()
