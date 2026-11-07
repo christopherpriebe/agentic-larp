@@ -8,7 +8,7 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._base import App, AppContext
 from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
 from agentic_larp.meltdown import Meltdown, is_doomed, play
 
@@ -175,3 +175,6 @@ def run(context: AppContext) -> None:
         success="🖼 minted out. floor price 4.20 ETH. you own a jpeg now.",
         failure="it's a jpeg of a monkey. it was always a jpeg of a monkey.",
     )
+
+
+APP = App("nft", "an NFT mint: a pixel ape, a floor price, and a jpeg", run)

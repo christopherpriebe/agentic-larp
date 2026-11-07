@@ -2,15 +2,15 @@ import random
 
 import pytest
 
-from agentic_larp import (
-    LarpError,
+from agentic_larp import LarpError
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import (
     LogLine,
     RunMode,
     Sim,
     SwarmSettings,
     format_duration,
     format_tokens,
-    pick_scenario,
 )
 
 

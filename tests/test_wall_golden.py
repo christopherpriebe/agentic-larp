@@ -15,7 +15,9 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from agentic_larp import Grid, Sim, SwarmSettings, Wall, pick_scenario
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import Sim, SwarmSettings
+from agentic_larp.widgets import Grid, Wall
 
 HERE = Path(__file__).parent
 GOLDEN = HERE / "golden"

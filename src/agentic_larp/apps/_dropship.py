@@ -8,7 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._base import App, AppContext
 from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
 from agentic_larp.meltdown import Meltdown, is_doomed, play
 
@@ -162,3 +162,10 @@ def run(context: AppContext) -> None:
         success="📦 orders shipped. customers will receive them in 6-8 weeks. or never.",
         failure="your store is now a GoFundMe.",
     )
+
+
+APP = App(
+    "dropship",
+    "a dropshipping store: every markup is 1,500%, shipping is 6-8 weeks",
+    run,
+)

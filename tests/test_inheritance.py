@@ -4,20 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from agentic_larp import (
+from agentic_larp import GrammarError, LarpError, main
+from agentic_larp.packs import (
     SCENARIOS,
     TOOLCHAINS,
-    GrammarError,
-    LarpError,
-    LogLine,
-    RunMode,
-    Sim,
-    SwarmSettings,
     discover_scenarios,
     load_scenario,
-    main,
     pick_scenario,
 )
+from agentic_larp.sim import LogLine, RunMode, Sim, SwarmSettings
 
 
 def write(directory: Path, name: str, text: str) -> Path:

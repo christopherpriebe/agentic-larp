@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import importlib.metadata
 import math
 import zlib
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 
 from rich import box
 from rich.console import Group, RenderableType
@@ -15,6 +14,8 @@ from rich.table import Table
 from rich.text import Text
 
 from agentic_larp._draw import ACCENT, BORDER, PANEL_MIN_HEIGHT, AgentBody, spinner
+from agentic_larp._errors import LarpError
+from agentic_larp._plugins import load_registry
 from agentic_larp._sim import format_duration, format_tokens
 
 if TYPE_CHECKING:
@@ -325,17 +326,36 @@ def builtin_widgets() -> dict[str, Callable[[Wall], Widget | PanelWidget]]:
     }
 
 
-def widget_registry() -> dict[str, Callable[[Wall], Widget | PanelWidget]]:
+def _check_widget(name: str, value: object) -> Callable[[Wall], Widget | PanelWidget]:
+    if name not in REGIONS:
+        message = f"not a region; use one of {', '.join(REGIONS)}"
+        raise LarpError(message)
+    if not callable(value):
+        message = "not a widget factory"
+        raise LarpError(message)
+    return cast("Callable[[Wall], Widget | PanelWidget]", value)
+
+
+def widget_registry(
+    on_error: Callable[[str, Exception], None] | None = None,
+) -> dict[str, Callable[[Wall], Widget | PanelWidget]]:
     """Return every widget factory by region: the built-ins, then plugins.
 
     Plugins register under the ``agentic_larp.widgets`` entry-point group,
     named after the region they replace; the loaded value is a class or
     function that takes the wall and returns a widget.
 
+    Args:
+        on_error: Called with the plugin name and the error for each plugin
+            that fails to load or names an unknown region, which is then
+            skipped. By default a failing plugin raises ``LarpError`` naming the group and plugin.
+
     Returns:
         Region name mapped to a factory.
     """
-    registry = builtin_widgets()
-    for entry_point in importlib.metadata.entry_points(group=WIDGET_ENTRY_POINT_GROUP):
-        registry[entry_point.name] = entry_point.load()
-    return registry
+    return load_registry(
+        WIDGET_ENTRY_POINT_GROUP,
+        builtin_widgets(),
+        check=_check_widget,
+        on_error=on_error,
+    )

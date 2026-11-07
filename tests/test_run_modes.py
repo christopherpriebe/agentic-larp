@@ -5,22 +5,10 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from agentic_larp import (
-    FLOW,
-    GrammarError,
-    LarpError,
-    PlanStage,
-    RunMode,
-    Session,
-    Sim,
-    SwarmSettings,
-    Todo,
-    WorkStage,
-    load_scenario,
-    main,
-    pick_scenario,
-    run_flow,
-)
+from agentic_larp import GrammarError, LarpError, main
+from agentic_larp.packs import load_scenario, pick_scenario
+from agentic_larp.sim import RunMode, Sim, SwarmSettings, Todo
+from agentic_larp.stages import FLOW, PlanStage, Session, WorkStage, run_flow
 from support import FakeClock, ScriptedKeys, output
 
 DT = 0.05

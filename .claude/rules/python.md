@@ -14,8 +14,10 @@ so instead of working around it.
 - Suppressions: `# ty: ignore[rule]` with a reason on the same line; the
   configuration does not honor `# type: ignore`. For ruff, `# noqa: RULE`
   with a reason. Both go in your summary.
-- Public API: implementation lives in underscore-prefixed modules; names are
-  re-exported from `__init__.py` and listed in `__all__`.
+- Public API: implementation lives in underscore-prefixed modules and is
+  re-exported from public submodules (`agentic_larp.sim`, `.stages`, ...)
+  with `__all__`. The root exports only `main`, the errors and `__version__`.
+  `tests/test_api.py` pins the surface.
 - Naming: functions are verb phrases; predicates start with `is_`, `has_`,
   or `can_`; spell words out (`configuration`, not `cfg`) except universal
   abbreviations (`id`, `url`, `io`).

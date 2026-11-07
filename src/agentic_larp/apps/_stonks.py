@@ -9,7 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import App, AppContext, run_loop
 from agentic_larp.apps._chart import draw_chart, make_ticker
 from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
@@ -185,3 +185,6 @@ def run(context: AppContext) -> None:
         f"[bold green]{screen.symbol}[/] closed at an all-time high. "
         "[dim]you still have $0 in revenue.[/]",
     )
+
+
+APP = App("stonks", "your startup's stock, which only goes up", run)

@@ -8,21 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from agentic_larp import (
+from agentic_larp import GrammarError, main
+from agentic_larp.packs import Grammar, load_scenario, pick_scenario
+from agentic_larp.policies import (
     POLICY_ENTRY_POINT_GROUP,
     ChoicePolicy,
-    Grammar,
-    GrammarError,
     RandomPolicy,
-    RunMode,
-    Sim,
-    SwarmSettings,
     VariedPolicy,
-    load_scenario,
-    main,
-    pick_scenario,
     policy_registry,
 )
+from agentic_larp.sim import RunMode, Sim, SwarmSettings
 from support import FakeClock
 
 THREE = (("a", 1.0), ("b", 1.0), ("c", 1.0))

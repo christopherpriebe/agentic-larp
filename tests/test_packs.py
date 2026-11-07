@@ -3,22 +3,20 @@ from pathlib import Path
 
 import pytest
 
-from agentic_larp import (
+from agentic_larp import GrammarError, LarpError
+from agentic_larp.packs import (
     BOUND_SYMBOLS,
     REQUIRED_SYMBOLS,
     SCENARIOS,
-    GrammarError,
-    LarpError,
-    Sim,
-    SwarmSettings,
     base_grammar,
     default_pack_dirs,
     discover_scenarios,
     load_scenario,
     parse_activity,
     pick_scenario,
-    render_entry,
 )
+from agentic_larp.sim import Sim, SwarmSettings
+from agentic_larp.widgets import render_entry
 
 MINIMAL = """
 [pack]

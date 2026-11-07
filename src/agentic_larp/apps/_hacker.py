@@ -8,7 +8,7 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import App, AppContext, run_loop
 from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
 GREEN = "#39ff14"
@@ -257,3 +257,8 @@ def run(context: AppContext) -> None:
         context.console.print("they traced you to a starbucks. good luck.")
         return
     context.console.print(f"[{GREEN}]> connection closed. you were never here.[/]")
+
+
+APP = App(
+    "hacker", "hack the planet: scan, dump, crack, trace (mash keys to go faster)", run
+)

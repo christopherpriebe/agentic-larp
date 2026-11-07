@@ -330,18 +330,38 @@ footer = "my_package.widgets:Footer"
 ```
 
 `Wall(sim, console, widgets={"footer": Footer})` does the same in code. A
-widget plugin that fails to load, or is named after an unknown region, stops
-the show with an error, like stage and app plugins.
+widget plugin that fails to load, or is named after an unknown region, prints
+a warning and is skipped, like stage and app plugins.
+
+### Extending (the 0.1 API)
+
+The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError` and
+`__version__`. Everything else is in a submodule, each with an explicit
+`__all__`:
+
+| Module | For |
+| --- | --- |
+| `agentic_larp.cli` | `main`, `build_parser`, `fit_agents`: the `larp` command |
+| `agentic_larp.sim` | `Sim`, `SwarmSettings`, `Agent`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
+| `agentic_larp.events` | `Event` classes and the `EventBus` a sim publishes on |
+| `agentic_larp.stages` | `Session`, `Stage`, `run_flow`, `stage_registry` and the built-in stages |
+| `agentic_larp.widgets` | `Wall`, `Widget`, `PanelWidget`, the built-in widgets, `widget_registry` |
+| `agentic_larp.packs` | `Scenario`, `Grammar`, pack loading, discovery and scenario picking |
+| `agentic_larp.policies` | choice policies and `policy_registry` |
+| `agentic_larp.apps` | `App`, `AppContext`, `Screen`, `run_loop`, `app_registry`, `discover_apps` |
+| `agentic_larp.meltdown` | build and play your app's own meltdown |
+| `agentic_larp.keys` | `Keys`, `KeySource`, `parse_keys`, `is_interactive` |
+| `agentic_larp.plugins` | `load_registry`, the one loader behind every entry-point group |
 
 ### Writing your own app
 
-An app is a function that takes an `AppContext`. The usual shape is a screen
+An app is an `App`: a name, a description and a function that takes an `AppContext`. The usual shape is a screen
 object with `render`, `on_key`, and `tick`, driven by `run_loop`:
 
 ```python
 from rich.text import Text
 
-from agentic_larp.apps import AppContext, run_loop
+from agentic_larp.apps import App, AppContext, run_loop
 
 
 class Counter:
@@ -361,14 +381,23 @@ class Counter:
 
 def run(context: AppContext) -> None:
     run_loop(context, Counter())
+
+
+APP = App("counter", "counts your keypresses", run)
 ```
 
-Register it in your package's `pyproject.toml`:
+Register it in your package's `pyproject.toml`; the entry point can be the
+`App` itself or a bare `run(context)` function (shown in `--list` as
+"plugin"):
 
 ```toml
 [project.entry-points."agentic_larp.apps"]
-counter = "my_package.counter:run"
+counter = "my_package.counter:APP"
 ```
+
+To add a built-in app, add one new module to `src/agentic_larp/apps/` that
+defines `APP`; `discover_apps()` imports every module of the package and
+collects each module-level `APP`, so nothing else needs editing.
 
 Then run `larp --app counter` or `larp --play counter`.
 
@@ -468,7 +497,10 @@ milliseconds.
 
 ```text
 src/agentic_larp/
-├── __init__.py      # public API, re-exported from the private modules
+├── __init__.py      # tiny root: main, LarpError, GrammarError, __version__
+├── cli.py sim.py events.py stages.py widgets.py packs.py policies.py keys.py
+│                    # public modules, re-exporting from the private ones
+├── plugins.py       # public plugin loader (impl in _plugins.py)
 ├── _cli.py          # the larp command
 ├── _errors.py       # LarpError, GrammarError
 ├── _grammar.py      # grammars and activity scripts
@@ -483,7 +515,7 @@ src/agentic_larp/
 ├── _stages.py       # the built-in stages (work, wrap, ready, ship, ...)
 ├── _wall.py         # the agent wall screen
 ├── meltdown.py      # public meltdown library (impl in _meltdown.py)
-└── apps/            # payoff apps; AppContext, Screen, run_loop are public
+└── apps/            # payoff apps: one module per app, each defining APP
 ```
 
 ### Branches

@@ -7,23 +7,19 @@ import pytest
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from agentic_larp import (
+from agentic_larp import LarpError
+from agentic_larp.events import LineShown
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import Agent, Sim, SwarmSettings
+from agentic_larp.stages import PlanStage, Session, run_flow
+from agentic_larp.widgets import (
     REGIONS,
     WIDGET_ENTRY_POINT_GROUP,
-    Agent,
     AgentPanel,
     FooterWidget,
     HeaderWidget,
-    LarpError,
-    LineShown,
-    PlanStage,
-    Session,
-    Sim,
-    SwarmSettings,
     SwarmWidget,
     Wall,
-    pick_scenario,
-    run_flow,
     widget_registry,
 )
 from support import FakeClock, ScriptedKeys, output

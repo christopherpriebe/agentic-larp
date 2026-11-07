@@ -1,11 +1,12 @@
 """Policies that choose which alternative a grammar rule expands to."""
 
-import importlib.metadata
 import random
 import re
 from collections import deque
 from collections.abc import Callable, Sequence
 from typing import Protocol
+
+from agentic_larp._plugins import load_registry
 
 POLICY_ENTRY_POINT_GROUP = "agentic_larp.policies"
 PHASES = ("explore", "implement", "build", "test", "debug")
@@ -212,22 +213,14 @@ def policy_registry(
 
     Args:
         on_error: Called with the plugin name and the error for each plugin
-            that fails to load, which is then skipped. By default the error
-            is raised.
+            that fails to load, which is then skipped. By default a failing
+            plugin raises ``LarpError`` naming the group and plugin.
 
     Returns:
         Policy name mapped to a zero-argument factory.
     """
-    registry: dict[str, Callable[[], ChoicePolicy]] = {
-        "random": RandomPolicy,
-        "varied": VariedPolicy,
-        "phased": PhasedPolicy,
-    }
-    for entry_point in importlib.metadata.entry_points(group=POLICY_ENTRY_POINT_GROUP):
-        try:
-            registry[entry_point.name] = entry_point.load()
-        except Exception as err:
-            if on_error is None:
-                raise
-            on_error(entry_point.name, err)
-    return registry
+    return load_registry(
+        POLICY_ENTRY_POINT_GROUP,
+        {"random": RandomPolicy, "varied": VariedPolicy, "phased": PhasedPolicy},
+        on_error=on_error,
+    )

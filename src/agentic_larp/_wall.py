@@ -109,7 +109,7 @@ class Wall:
         """Apply one keypress to the prompt.
 
         Args:
-            key: A key name from :func:`agentic_larp.parse_keys`.
+            key: A key name from :func:`agentic_larp.keys.parse_keys`.
 
         Returns:
             The submitted line (stripped, possibly empty) on enter, ``"quit"``

@@ -4,25 +4,21 @@ from collections import deque
 import pytest
 from rich.console import Console
 
-from agentic_larp import (
+from agentic_larp.events import (
     AgentFinished,
     AgentSpawned,
     Converged,
     Event,
     EventBus,
     LineShown,
-    LogLine,
     Report,
-    RunMode,
     ScopeCreep,
-    Session,
     ShipStarted,
-    Sim,
-    SwarmSettings,
     TodoDone,
-    pick_scenario,
-    run_flow,
 )
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import LogLine, RunMode, Sim, SwarmSettings
+from agentic_larp.stages import Session, run_flow
 from support import FakeClock, ScriptedKeys
 
 DT = 0.05

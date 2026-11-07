@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from agentic_larp import Keys, is_interactive, parse_keys
+from agentic_larp.keys import Keys, is_interactive, parse_keys
 
 
 @pytest.mark.parametrize(

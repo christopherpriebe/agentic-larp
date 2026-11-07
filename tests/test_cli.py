@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from agentic_larp import build_parser, fit_agents, main
+from agentic_larp import main
+from agentic_larp.cli import build_parser, fit_agents
 from support import FakeClock
 
 

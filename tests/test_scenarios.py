@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from agentic_larp import (
+from agentic_larp.packs import (
     BOUND_SYMBOLS,
     REQUIRED_SYMBOLS,
     SCENARIOS,

@@ -11,7 +11,7 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import App, AppContext, run_loop
 from agentic_larp.meltdown import Meltdown, is_doomed, run_meltdown
 
 REGIONS = (
@@ -283,3 +283,6 @@ def run(context: AppContext) -> None:
     context.console.print(
         "[bold green]🚀 shipped.[/] [dim]if anything breaks, it was the intern.[/]",
     )
+
+
+APP = App("deploy", "a global prod rollout that definitely won't page anyone", run)

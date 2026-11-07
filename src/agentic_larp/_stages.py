@@ -265,7 +265,9 @@ class LaunchStage:
         if bool(session.then):
             session.exit_code = subprocess.call(session.then, shell=True)  # noqa: S602 - the user's own command; running it is the feature
         elif session.app != "none":
-            apps = app_registry()
+            apps = (
+                app_registry(session.on_error) if session.apps is None else session.apps
+            )
             if session.app not in apps:
                 session.console.print(describe_unknown_app(session.app, apps))
                 session.exit_code = _UNKNOWN_APP
@@ -306,7 +308,7 @@ class AbandonStage:
             session: The session to run in.
 
         Returns:
-            :data:`~agentic_larp.END`.
+            :data:`~agentic_larp.stages.END`.
         """
         session.release_screen()
         if session.sim is not None:
