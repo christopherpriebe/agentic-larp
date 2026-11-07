@@ -2,6 +2,7 @@
 
 import random
 from collections import deque
+from dataclasses import replace
 
 from rich.align import Align
 from rich.console import Group, RenderableType
@@ -10,7 +11,8 @@ from rich.progress_bar import ProgressBar
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import AppContext, Outcome, run_loop
+from agentic_larp.apps._meltdown import run_meltdown
 
 REGIONS = (
     "us-east-1",
@@ -43,6 +45,24 @@ _COMPLETE = 100.0
 _REGION_STAGGER = 0.5
 _MAX_BOOST = 10.0
 _SPARK_POINTS = 30
+_BREAK_AT = 6.5  # seconds into the rollout before prod breaks, when failing
+_BREAK_SECONDS = 3.0
+_FLIP_EVERY = 0.35
+FAIL_EVENTS = (
+    "🚨 error rate above 5%",
+    "📟 PAGER SCREAMING",
+    "503 everywhere",
+    "CEO is typing…",
+    "pagerduty: 9,000 incidents",
+    "rollback plan: README.md is also down",
+)
+FAIL_ERRORS = (
+    "503 everywhere",
+    "migration 0042 dropped the users table",
+    "pagerduty: 9,000 incidents",
+    "healthcheck: [object Object]",
+    "CEO is typing...",
+)
 
 
 def sparkline(values: list[float]) -> str:
@@ -77,6 +97,14 @@ class DeployScreen:
         self.boost = 0.0
         self.next_event = 0.5
         self.done_at: float | None = None
+        self.broken_at: float | None = None
+        self.failed: list[str] = []
+        self.next_flip = 0.0
+
+    @property
+    def is_failing(self) -> bool:
+        """Return whether this rollout is going to break."""
+        return self.context.outcome is Outcome.FAIL
 
     def on_key(self, key: str) -> bool:
         """Speed things up, or leave.
@@ -87,7 +115,7 @@ class DeployScreen:
         Returns:
             ``False`` on escape, or on any key once shipped.
         """
-        if key == "esc" or self.done_at is not None:
+        if key == "esc" or (self.done_at is not None and not self.is_failing):
             return False
         self.boost = min(_MAX_BOOST, self.boost + 1.5)
         return True
@@ -99,7 +127,8 @@ class DeployScreen:
             dt: Real seconds since the last frame.
 
         Returns:
-            Always ``True``; the user leaves with a key.
+            ``True`` normally (the user leaves with a key); ``False`` once a
+            failing rollout has finished breaking.
         """
         self.clock += dt
         boost = 1 + self.boost
@@ -108,6 +137,7 @@ class DeployScreen:
             if (
                 self.clock > index * _REGION_STAGGER
                 and self.progress[region] < _COMPLETE
+                and region not in self.failed
             ):
                 step = dt * self.speed[region] * boost * self.rng.uniform(0.3, 1.7)
                 self.progress[region] = min(_COMPLETE, self.progress[region] + step)
@@ -119,10 +149,27 @@ class DeployScreen:
         if self.clock > self.next_event and self.upcoming:
             self.events.append(("dim", self.upcoming.pop()))
             self.next_event = self.clock + self.rng.uniform(0.8, 2.0)
+        if self.is_failing:
+            return self._tick_failure()
         if self.done_at is None and self.is_shipped:
             self.done_at = self.clock
             self.events.append(("bold green", "🚀 100% of traffic on new version"))
         return True
+
+    def _tick_failure(self) -> bool:
+        if self.broken_at is None:
+            if self.clock < _BREAK_AT:
+                return True
+            self.broken_at = self.next_flip = self.clock
+        if self.clock >= self.next_flip:
+            self.next_flip = self.clock + _FLIP_EVERY
+            healthy = [r for r in REGIONS if r not in self.failed]
+            if healthy:
+                region = self.rng.choice(healthy)
+                self.failed.append(region)
+                self.events.append(("bold red", f"✗ {region} returning 503"))
+            self.events.append(("red", self.rng.choice(FAIL_EVENTS)))
+        return self.clock - self.broken_at < _BREAK_SECONDS
 
     @property
     def is_shipped(self) -> bool:
@@ -142,7 +189,9 @@ class DeployScreen:
         regions.add_column("status", no_wrap=True)
         for region in REGIONS:
             value = self.progress[region]
-            if value >= _COMPLETE:
+            if region in self.failed:
+                status = Text("✗ 503", style="bold red")
+            elif value >= _COMPLETE:
                 status = Text("✓ live", style="green")
             elif value == 0:
                 status = Text("◌ queued", style="dim")
@@ -151,8 +200,8 @@ class DeployScreen:
             bar = ProgressBar(
                 total=_COMPLETE,
                 completed=value,
-                complete_style="green",
-                finished_style="bold green",
+                complete_style="red" if region in self.failed else "green",
+                finished_style="bold red" if region in self.failed else "bold green",
             )
             regions.add_row(region, bar, f"{value:5.1f}%", status)
 
@@ -162,7 +211,11 @@ class DeployScreen:
         metrics.add_column(style="bold green")
         recent = list(self.traffic)[-_SPARK_POINTS:]
         metrics.add_row("requests/s", f"{self.traffic[-1]:,.0f}  {sparkline(recent)}")
-        metrics.add_row("error rate", "0.00%")
+        if self.broken_at is None:
+            metrics.add_row("error rate", "0.00%")
+        else:
+            rate = min(99.9, (self.clock - self.broken_at) * 25 + len(self.failed))
+            metrics.add_row("error rate", Text(f"{rate:.2f}%", style="bold red"))
         metrics.add_row("p99 latency", f"{self.rng.uniform(3.6, 4.4):.1f}ms")
         metrics.add_row("uptime", "100.000%")
         metrics.add_row("vibes", "immaculate")
@@ -216,7 +269,15 @@ def run(context: AppContext) -> None:
     Args:
         context: The app's context.
     """
-    run_loop(context, DeployScreen(context))
+    screen = DeployScreen(context)
+    is_failing = context.outcome is Outcome.FAIL
+    run_loop(replace(context, auto=None) if is_failing else context, screen)
+    if screen.broken_at is not None:
+        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        context.console.print(
+            "🔥 prod was down for 9 seconds. nobody noticed. blame the intern."
+        )
+        return
     context.console.print(
         "[bold green]🚀 shipped.[/] [dim]if anything breaks, it was the intern.[/]",
     )

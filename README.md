@@ -51,6 +51,7 @@ larp --pack ./zebra.toml -s zebra # your own pack
 larp --then "cmatrix"             # after shipping, run any real command
 larp --play hacker                # skip the agents, go straight to an app
 larp --auto 8                     # ships itself after 8s (for screen recordings)
+larp --fail                       # the payoff app breaks, then melts down (jk)
 larp --list                       # scenarios and apps
 ```
 
@@ -83,12 +84,31 @@ seconds.
 | --- | --- | --- |
 | `girlfriend` | `face.cpp`, `heart.hpp`, `ring.cpp` | **call**: she calls. Answer, and type to her. |
 | `startup` | `Deck.tsx`, `valuation.ts`, `moat.ts` | **stonks**: your ticker, which only goes up |
-| `hacker` | `exploit.c`, `payload.asm`, `proxy.go` | **hacker**: hacker typer; tab is ACCESS GRANTED |
+| `hacker` | `exploit.c`, `payload.asm`, `proxy.go` | **hacker**: scan, dump memory, crack a password, outrun the trace |
 | `prod` | `migrations/0042.sql`, `main.tf` | **deploy**: a global rollout; nobody gets paged |
 | `generic` | whatever you typed | deploy or stonks |
 
-The hacker typer types out agentic-larp's own source code, so it's technically
-real code.
+The hacker app plays four stages by itself (SCANNING, DUMPING MEMORY, CRACKING
+PASSWORD, TRACING) and ends on a flashing ACCESS GRANTED after roughly 25
+seconds. Every keypress pushes it forward, so mashing keys finishes sooner. Tab
+flashes ACCESS GRANTED at any time and esc logs off. When failing, the hack
+never promises access: tab flashes ACCESS DENIED and the footer stops
+advertising it.
+
+### Failing on purpose
+
+Every app has a success ending (the default) and a fail ending: `--fail`, or
+`--outcome fail` (`--outcome success` is the default; combining it with
+`--fail` is an error). It works with `--play` and after a normal show, and
+`--then` is unaffected. The app plays normally, breaks by itself a few seconds
+in (she says something cursed, regions go red, the chart crashes, the hack gets
+traced), and then everything melts down: the frozen frame's characters
+glitch-decay into red noise, an error cascade scrolls, a fake death screen
+appears (a `137` exit, a kernel panic, or a blue screen), and a "jk" reveal
+follows. Esc during the meltdown skips ahead; esc before the app breaks just exits
+cleanly with the app's normal goodbye. `--auto` does not cut a failing app
+short, and a failing call picks up by itself after two seconds of ringing.
+
 
 ### Grid and spotlight
 
@@ -191,6 +211,54 @@ counter = "my_package.counter:run"
 ```
 
 Then run `larp --app counter` or `larp --play counter`.
+
+An app gets `context.outcome` (`Outcome.SUCCESS` by default, or
+`Outcome.FAIL`); apps that ignore it keep working. The meltdown is available to
+plugins too: `run_meltdown(context, frame, errors)` decays the given frame,
+scrolls your `errors` mixed with `SHARED_ERRORS`, shows a death screen and the
+reveal. `capture_frame(console, renderable)` turns a renderable into plain
+text lines, and `decay(lines, amount, rng)` corrupts a fraction of their
+characters (0 to 1; a larger amount corrupts a superset). A plugin that fails
+when asked to:
+
+```python
+from dataclasses import replace
+
+from rich.text import Text
+
+from agentic_larp.apps import AppContext, Outcome, run_loop, run_meltdown
+
+
+class Doomed:
+    def __init__(self, *, is_doomed: bool) -> None:
+        self.is_doomed = is_doomed
+        self.has_broken = False
+        self.seconds = 0.0
+
+    def render(self) -> Text:
+        return Text(f"all systems nominal ({self.seconds:.0f}s)")
+
+    def on_key(self, key: str) -> bool:
+        return key != "esc"
+
+    def tick(self, dt: float) -> bool:
+        self.seconds += dt
+        self.has_broken = self.is_doomed and self.seconds > 5  # break after 5s
+        return not self.has_broken
+
+
+def run(context: AppContext) -> None:
+    is_doomed = context.outcome is Outcome.FAIL
+    # Drop auto under FAIL, or demo mode would end the app before it breaks.
+    run_context = replace(context, auto=None) if is_doomed else context
+    screen = Doomed(is_doomed=is_doomed)
+    run_loop(run_context, screen)
+    if screen.has_broken:  # esc before the break just leaves, no meltdown
+        run_meltdown(context, screen.render(), ["doomed.py: it was doomed"])
+        context.console.print("it was doomed all along.")
+    else:
+        context.console.print("all systems nominal.")
+```
 
 ### FAQ
 

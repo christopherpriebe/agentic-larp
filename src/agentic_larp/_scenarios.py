@@ -178,10 +178,15 @@ def pick_scenario(
     if task is not None:
         lowered = task.lower()
         for scenario in available.values():
-            if any(keyword in lowered for keyword in scenario.keywords):
+            if any(_has_word(lowered, keyword) for keyword in scenario.keywords):
                 return _with_task(scenario, task)
         return generic_scenario(task, rng)
     return rng.choice(list(available.values()))
+
+
+def _has_word(text: str, keyword: str) -> bool:
+    pattern = rf"(?<!\w){re.escape(keyword.lower())}(?!\w)"
+    return re.search(pattern, text) is not None
 
 
 def _with_task(scenario: Scenario, task: str | None) -> Scenario:

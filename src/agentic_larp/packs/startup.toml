@@ -1,7 +1,7 @@
 [pack]
 key = "startup"
 task = "build a billion dollar startup"
-keywords = ["startup", "billion", "unicorn", "company", "saas", "money", "rich", "vc", "ipo"]
+keywords = ["startup", "billion", "unicorn", "company", "saas", "money", "rich", "vc", "ipo", "startups", "billions", "unicorns", "companies", "millions"]
 app = "stonks"
 
 [areas]

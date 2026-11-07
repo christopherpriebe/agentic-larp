@@ -302,3 +302,50 @@ def test_agent_count_must_be_positive(
     with pytest.raises(SystemExit, match="2"):
         main(["-n", agents])
     assert "-n/--agents" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("flags", [["--fail"], ["--outcome", "fail"]])
+def test_fail_flags_reach_the_app(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock, flags: list[str]
+) -> None:
+    assert main(["--play", "stonks", *flags]) == 0
+    text = capsys.readouterr().out
+    assert "jk" in text
+    assert "closed at an all-time high" not in text
+    assert clock.now > 1.0
+
+
+def test_fail_flag_reaches_the_app_after_a_show(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    assert main(["-s", "prod", "--auto", "1", "--speed", "4", "--fail"]) == 0
+    text = capsys.readouterr().out
+    assert "jk" in text
+    assert "if anything breaks, it was the intern" not in text
+    assert clock.now > 1.0
+
+
+def test_apps_succeed_unless_told_otherwise(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    assert main(["--play", "stonks", "--auto", "1"]) == 0
+    text = capsys.readouterr().out
+    assert "closed at an all-time high" in text
+    assert "jk" not in text
+    assert clock.now > 1.0
+
+
+def test_conflicting_outcome_flags_are_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        main(["--fail", "--outcome", "success"])
+    assert "--fail" in capsys.readouterr().err
+
+
+def test_failing_call_finishes_without_a_keyboard(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    assert main(["--play", "call", "--fail"]) == 0
+    assert "jk" in capsys.readouterr().out
+    assert clock.now < 60.0

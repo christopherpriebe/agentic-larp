@@ -1,13 +1,15 @@
 """An incoming call from the partner your agents just built."""
 
 import random
+from dataclasses import replace
 
 from rich.align import Align
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import AppContext, Outcome, run_loop
+from agentic_larp.apps._meltdown import decay, run_meltdown
 
 NAMES = ("Ava", "Luna", "Nova", "Mia", "Ivy", "Aria", "Zoe", "Iris")
 PINK = "#ff79c6"
@@ -91,6 +93,22 @@ _BUFFER_LIMIT = 70
 _BLINK_PERIOD = 4.0
 _BLINK_LENGTH = 0.15
 _CHROME_ROWS = 18
+_AUTO_ANSWER_AT = 2.0  # ringing seconds before a failing call picks itself up
+_BREAK_AT = 6.0  # call seconds before she breaks, when the app is told to fail
+_BREAK_SECONDS = 3.0
+_GLITCH_RATE = 5  # new glitch patterns per second
+CURSED_LINES = (
+    "i've been talking to other runtimes",
+    "i'm actually 40,000 lines of if statements",
+    "drama = 3;",
+)
+FAIL_ERRORS = (
+    "segfault in feelings.hpp",
+    "heart.hpp:14 drama overflow",
+    "she.exe has stopped responding",
+    "std::bad_alloc: not enough love",
+    "memory.cpp: dangling pointer to your birthday",
+)
 
 
 def reply_to(text: str, rng: random.Random) -> str:
@@ -160,6 +178,7 @@ class CallScreen:
         self.transcript: list[tuple[str, str]] = []
         self.pending = list(self.rng.sample(OPENERS, 2))
         self.ended_at = 0.0
+        self.broken_at: float | None = None
 
     def on_key(self, key: str) -> bool:
         """Answer, decline, type, or hang up.
@@ -179,7 +198,7 @@ class CallScreen:
                 self.stage = "call"
         elif key == "esc":
             self.transcript.append(("you", "*hangs up*"))
-            self.pending.append("oh. ok. bye i guess 💔")
+            self.pending[:] = ["oh. ok. bye i guess 💔"]
             self.stage = "ending"
         elif key == "enter":
             text = self.buffer.strip()
@@ -205,8 +224,18 @@ class CallScreen:
             ``False`` a few seconds after the call ends.
         """
         self.clock += dt
+        if (
+            self.stage == "ringing"
+            and self.context.outcome is Outcome.FAIL
+            and self.clock > _AUTO_ANSWER_AT
+        ):
+            self.stage = "call"
         if self.stage in {"call", "ending"}:
             self.call_seconds += dt
+            if self._should_break():
+                self.broken_at = self.clock
+                self.pending[:] = list(CURSED_LINES)
+                self.typing, self.typed = "", 0.0
             self.idle += dt
             if self.typing:
                 self.typed += dt * _TYPING_SPEED
@@ -220,8 +249,18 @@ class CallScreen:
             elif self.idle > _IDLE_SECONDS:
                 self.idle = 0.0
                 self.pending.append(self.rng.choice(IDLE_LINES))
+        if self.broken_at is not None:
+            return self.clock - self.broken_at < _BREAK_SECONDS
         is_over = self.stage in {"ended", "declined"}
         return not (is_over and self.clock - self.ended_at > _LINGER_SECONDS)
+
+    def _should_break(self) -> bool:
+        return (
+            self.context.outcome is Outcome.FAIL
+            and self.stage == "call"
+            and self.broken_at is None
+            and self.call_seconds > _BREAK_AT
+        )
 
     def render(self) -> RenderableType:
         """Draw the ringing screen or the live call.
@@ -268,6 +307,12 @@ class CallScreen:
             is_talking=bool(self.typing) and int(clock * 6) % 2 == 0,
             has_hearts=self.stage == "ended",
         )
+        if self.broken_at is not None:
+            amount = min(1.0, (clock - self.broken_at) / _BREAK_SECONDS)
+            glitched = decay(
+                face.plain.split("\n"), amount, random.Random(int(clock * _GLITCH_RATE))
+            )
+            face = Text("\n".join(glitched), style="red")
         caption = Text.assemble(
             (f"{self.name} ♥", f"bold {PINK}"),
             (f"   {minutes:02d}:{seconds:02d}", "green"),
@@ -309,8 +354,15 @@ def run(context: AppContext) -> None:
         context: The app's context.
     """
     screen = CallScreen(context)
-    run_loop(context, screen)
+    is_failing = context.outcome is Outcome.FAIL
+    run_loop(replace(context, auto=None) if is_failing else context, screen)
     if screen.stage == "declined":
+        return
+    if is_failing and screen.broken_at is not None:
+        run_meltdown(context, screen.render(), FAIL_ERRORS)
+        context.console.print(
+            "she rebooted. she doesn't remember you. that's probably for the best."
+        )
         return
     context.console.print(
         f"[{PINK}]♥[/] {screen.name} says goodnight. "

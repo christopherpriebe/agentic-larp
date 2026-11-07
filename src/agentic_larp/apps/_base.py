@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
+from enum import StrEnum
 from importlib.metadata import entry_points
 from typing import Protocol, TypeAlias
 
@@ -16,6 +17,13 @@ ENTRY_POINT_GROUP = "agentic_larp.apps"
 _MAX_DT = 0.25
 
 
+class Outcome(StrEnum):
+    """How an app ends: with a flourish, or with a meltdown."""
+
+    SUCCESS = "success"
+    FAIL = "fail"
+
+
 @dataclass(frozen=True, slots=True)
 class AppContext:
     """Everything an app gets when it launches.
@@ -26,6 +34,7 @@ class AppContext:
         auto: Exit on its own after this many seconds (demo mode), or never.
         fps: Frames per second.
         keys: Key source to read from; ``None`` reads the real keyboard.
+        outcome: Whether the app should end well or break and melt down.
     """
 
     console: Console
@@ -33,6 +42,7 @@ class AppContext:
     auto: float | None = None
     fps: int = 20
     keys: KeySource | None = None
+    outcome: Outcome = Outcome.SUCCESS
 
 
 class Screen(Protocol):
@@ -88,7 +98,7 @@ def run_loop(context: AppContext, screen: Screen) -> None:
 
 DESCRIPTIONS = {
     "call": "someone who loves you calls (the agents built her)",
-    "hacker": "hacker typer: mash keys, look like a genius (tab = access granted)",
+    "hacker": "hack the planet: scan, dump, crack, trace (mash keys to go faster)",
     "deploy": "a global prod rollout that definitely won't page anyone",
     "stonks": "your startup's stock, which only goes up",
 }
