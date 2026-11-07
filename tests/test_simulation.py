@@ -3,6 +3,7 @@ import random
 import pytest
 
 from agentic_larp import (
+    LarpError,
     LogLine,
     Sim,
     SwarmSettings,
@@ -35,7 +36,7 @@ def test_sim_starts_mid_run_with_busy_agents() -> None:
     assert [agent.area for agent in sim.agents] == ["render", "voice", "heart"]
     assert all(agent.log for agent in sim.agents)
     assert len(sim.interns) == 5
-    assert sim.fake >= 4 * 60
+    assert sim.run_time >= 4 * 60
     assert sim.running == 3
     assert not sim.is_all_done
 
@@ -51,13 +52,13 @@ def test_sim_is_reproducible_with_a_seed() -> None:
 
 def test_ticking_streams_tool_calls_and_spends_money() -> None:
     sim = make_sim()
-    calls, cost, fake = sim.total_calls, sim.cost, sim.fake
+    calls, cost, started = sim.total_calls, sim.cost, sim.run_time
     run(sim, 10)
     kinds = {line.kind for agent in sim.agents for line in agent.log}
     assert {"tool", "result", "quip"} <= kinds
     assert sim.total_calls > calls
     assert sim.cost > cost
-    assert sim.fake > fake
+    assert sim.run_time > started
 
 
 def test_custom_model_names_label_the_swarm() -> None:
@@ -82,7 +83,9 @@ def test_mashing_keys_makes_more_progress() -> None:
         frantic.tick(0.05)
         calm.tick(0.05)
     assert frantic.total_calls > calm.total_calls
-    assert frantic.fake > calm.fake
+    assert frantic.run_time == pytest.approx(
+        calm.run_time
+    )  # mashing never speeds the clock
 
 
 def test_broadcast_is_routed_and_answered() -> None:
@@ -150,3 +153,72 @@ def test_format_tokens(count: float, expected: str) -> None:
 
 def test_log_lines_are_values() -> None:
     assert LogLine("tool", "x.py", "Read") == LogLine("tool", "x.py", "Read")
+
+
+def test_clock_runs_at_real_time_even_when_frantic() -> None:
+    sim = make_sim()
+    started = sim.run_time
+    for _ in range(200):
+        sim.poke(25)
+        sim.tick(0.05)
+    assert sim.run_time - started == pytest.approx(10.0)
+
+
+def test_activity_speeds_up_the_agents_but_not_the_clock() -> None:
+    slow = make_sim(SwarmSettings(activity=1.0), seed=6)
+    fast = make_sim(SwarmSettings(activity=4.0), seed=6)
+    slow_start, fast_start = slow.run_time, fast.run_time
+    calls = slow.total_calls, fast.total_calls
+    run(slow, 10)
+    run(fast, 10)
+    assert fast.total_calls - calls[1] > 2 * (slow.total_calls - calls[0])
+    assert slow.run_time - slow_start == pytest.approx(10.0)
+    assert fast.run_time - fast_start == pytest.approx(10.0)
+
+
+def test_tokens_and_money_race_ahead_of_the_clock() -> None:
+    sim = make_sim()
+    tokens, cost = sim.total_tokens, sim.cost
+    run(sim, 10)
+    assert sim.total_tokens - tokens >= 200_000
+    assert sim.cost - cost >= 5.0
+
+
+def test_clock_keeps_running_while_agents_wrap_up() -> None:
+    sim = make_sim()
+    sim.ship()
+    started = sim.run_time
+    sim.tick(0.1)
+    assert not sim.is_all_done
+    assert sim.run_time - started == pytest.approx(0.1)
+
+
+def test_everything_freezes_once_every_agent_is_done() -> None:
+    sim = make_sim(SwarmSettings(agents=3))
+    sim.ship()
+    run(sim, 20)
+    assert sim.is_all_done
+    snapshot = (sim.run_time, sim.total_calls, sim.total_tokens, sim.cost)
+    for _ in range(200):
+        sim.poke(25)
+        sim.tick(0.05)
+    assert (sim.run_time, sim.total_calls, sim.total_tokens, sim.cost) == snapshot
+
+
+@pytest.mark.parametrize("activity", [0.0, -1.0, float("nan"), float("inf")])
+def test_sim_rejects_unusable_activity(activity: float) -> None:
+    with pytest.raises(LarpError, match="activity must be a finite number above 0"):
+        make_sim(SwarmSettings(activity=activity))
+
+
+def test_sim_rejects_an_empty_swarm() -> None:
+    with pytest.raises(LarpError, match="at least one agent"):
+        make_sim(SwarmSettings(agents=0))
+
+
+def test_tokens_still_climb_at_a_crawl() -> None:
+    sim = make_sim(SwarmSettings(activity=0.04))
+    tokens = sim.total_tokens
+    for _ in range(2000):
+        sim.tick(0.005)
+    assert sim.total_tokens - tokens >= 5_000

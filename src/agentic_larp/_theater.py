@@ -111,7 +111,8 @@ class ShowSettings:
     Attributes:
         launch_label: What the launch sequence says it is starting.
         auto: Ship by itself after this many seconds (demo mode), or never.
-        pace: Speed multiplier for everything, including stage timings.
+        pace: Fast-forward for tests and demos. Multiplies the speed of
+            everything, including the clock and stage timings.
         fps: Frames per second.
         keys: Key source to read from; ``None`` reads the real keyboard.
         grid: Fixed feed grid with spotlight rotation, or ``None`` to fit the
@@ -198,7 +199,12 @@ class Theater:
             elif self.stage == "ready":
                 self.launch()
         elif text.lower() in _SPAWN_WORDS:
-            self.sim.spawn_agent()
+            if self.stage == "running":
+                self.sim.spawn_agent()
+            else:
+                self.sim.reports.append(
+                    (self.sim.orchestrator, "no new agents while wrapping up.")
+                )
         else:
             self.sim.broadcast(text)
 
@@ -392,7 +398,7 @@ class Theater:
                 (spinner(sim.now) + " ", ACCENT), f"{word} {sim.running}"
             )
         status.append(
-            f" · {format_duration(sim.fake)} · ↓ {format_tokens(sim.total_tokens)} · "
+            f" · {format_duration(sim.run_time)} · ↓ {format_tokens(sim.total_tokens)} · "
         )
         status.append(f"${sim.cost:,.2f}", style="bold yellow")
         top = Table.grid(expand=True)
@@ -519,7 +525,9 @@ class Theater:
             prompt = Text.assemble(
                 ("❯ ", "bold cyan"), (self.buffer, "bold"), (cursor, "cyan")
             )
-            hint = "mash keys to go faster · type 'ship it' · esc quit"
+            if not self.buffer and self.stage == "running":
+                prompt.append(f" Message {sim.orchestrator}…", style="dim")
+            hint = "'ship it' to ship · esc to quit"
             if self.stage != "running":
                 hint = ""
         totals = f"{sim.running}/{len(sim.agents)} running · {sim.total_calls:,} calls"

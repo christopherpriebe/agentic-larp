@@ -284,3 +284,21 @@ def test_pack_text_is_shown_literally_not_as_markup(
     assert main(["-s", "brackets", "--auto", "1", "--speed", "4", "--app", "none"]) == 0
     assert "✓ shipped fix [/] the [beta] bug" in capsys.readouterr().out
     assert clock.now > 1.0
+
+
+@pytest.mark.parametrize("speed", ["0", "-1", "nan", "inf", "fast"])
+def test_bad_speed_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], speed: str
+) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        main(["--speed", speed])
+    assert "--speed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("agents", ["0", "-3"])
+def test_agent_count_must_be_positive(
+    capsys: pytest.CaptureFixture[str], agents: str
+) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        main(["-n", agents])
+    assert "-n/--agents" in capsys.readouterr().err
