@@ -4,6 +4,7 @@ import argparse
 import math
 import random
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 from typing import cast
@@ -13,7 +14,7 @@ from rich.markup import escape
 
 from agentic_larp._draw import PANEL_MIN_HEIGHT
 from agentic_larp._errors import GrammarError, LarpError
-from agentic_larp._flow import FLOW, Session, run_flow
+from agentic_larp._flow import FLOW, Session, Stage, run_flow, stage_registry
 from agentic_larp._grid import Grid
 from agentic_larp._keys import is_interactive
 from agentic_larp._packs import (
@@ -28,8 +29,9 @@ from agentic_larp._policies import ChoicePolicy, policy_registry
 from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import RunMode, Sim, SwarmSettings
 from agentic_larp._stages import LaunchStage, describe_unknown_app
-from agentic_larp._wall import PANEL_MIN_WIDTH
-from agentic_larp.apps import DESCRIPTIONS, App, app_registry
+from agentic_larp._wall import PANEL_MIN_WIDTH, Wall
+from agentic_larp._widgets import PanelWidget, Widget, widget_registry
+from agentic_larp.apps import App, app_registry
 from agentic_larp.meltdown import check_ending
 
 _NON_INTERACTIVE_AUTO = 6.0
@@ -68,11 +70,19 @@ def _parse_agent_count(text: str) -> int:
     return value
 
 
-def _policy_warner(console: Console) -> Callable[[str, Exception], None]:
+def _plugin_warner(console: Console) -> Callable[[str, Exception], None]:
     def warn(name: str, error: Exception) -> None:
         _print_unwrapped(console, f"[yellow]warning: {escape(f'{name}: {error}')}[/]")
 
     return warn
+
+
+@dataclass(frozen=True, slots=True)
+class _Plugins:
+    apps: Mapping[str, App]
+    stages: Mapping[str, Callable[[], Stage]]
+    widgets: Mapping[str, Callable[[Wall], Widget | PanelWidget]]
+    warn: Callable[[str, Exception], None]
 
 
 def _check_policy(
@@ -265,13 +275,16 @@ def main(argv: list[str] | None = None) -> int:
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_FLAG
-    apps = app_registry()
+    warn = _plugin_warner(console)
+    apps = app_registry(on_error=warn)
+    stages = stage_registry(on_error=warn)
+    widgets = widget_registry(on_error=warn)
     try:
         packs = _collect_packs(args.pack or [], console)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
-    registry = policy_registry(on_error=_policy_warner(console))
+    registry = policy_registry(on_error=warn)
     if args.list:
         _print_list(console, apps, packs, registry)
         return 0
@@ -282,7 +295,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.play:
             return _run_play(args, console, apps, auto)
-        return _run_show(args, console, auto, packs)
+        return _run_show(
+            args,
+            console,
+            auto,
+            packs,
+            _Plugins(apps, stages, widgets, warn),
+        )
     except KeyboardInterrupt:
         console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
         return _INTERRUPTED
@@ -305,6 +324,7 @@ def _run_play(
         app=args.play,
         auto=auto,
         flags=dict(args.flags),
+        apps=apps,
     )
     return run_flow(session, ("launch",), {"launch": LaunchStage})
 
@@ -314,6 +334,7 @@ def _run_show(
     console: Console,
     auto: float | None,
     packs: Mapping[str, Scenario],
+    plugins: _Plugins,
 ) -> int:
     rng = random.Random(args.seed)
     given_task = " ".join(args.task) or None
@@ -359,8 +380,11 @@ def _run_show(
             auto=auto,
             grid=grid,
             flags=dict(args.flags),
+            apps=plugins.apps,
+            widgets=plugins.widgets,
+            on_error=plugins.warn,
         )
-        return run_flow(session, FLOW)
+        return run_flow(session, FLOW, plugins.stages)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
@@ -405,5 +429,5 @@ def _print_list(
     for name in policies:
         console.print(f"  [cyan]{escape(name):<11}[/]")
     console.print("\n[bold]apps[/]  (--app NAME or --play NAME)")
-    for name in apps:
-        console.print(f"  [cyan]{name:<11}[/] {DESCRIPTIONS.get(name, 'plugin')}")
+    for name, app in apps.items():
+        console.print(f"  [cyan]{name:<11}[/] {escape(app.description)}")

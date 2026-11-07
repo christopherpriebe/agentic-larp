@@ -4,7 +4,7 @@ import pytest
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from agentic_larp.apps import DESCRIPTIONS, AppContext, app_registry, run_loop
+from agentic_larp.apps import AppContext, app_registry, run_loop
 from support import FakeClock, ScriptedKeys, output
 
 
@@ -29,7 +29,7 @@ def run_app(
 def test_registry_has_every_builtin_with_a_description() -> None:
     apps = app_registry()
     assert {"call", "hacker", "deploy", "stonks"} <= set(apps)
-    assert set(DESCRIPTIONS) <= set(apps)
+    assert all(app.description for app in apps.values())
 
 
 def test_call_rings_talks_and_hangs_up(

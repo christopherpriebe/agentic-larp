@@ -1,13 +1,12 @@
 """The flow: a session walks through named stages, built-in or plugged in."""
 
-import importlib.metadata
 import random
 import re
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, cast
 
 from rich.console import Console, RenderableType
 from rich.live import Live
@@ -15,10 +14,11 @@ from rich.live import Live
 from agentic_larp._errors import LarpError
 from agentic_larp._grid import Grid
 from agentic_larp._keys import Keys, KeySource
+from agentic_larp._plugins import load_registry
 from agentic_larp._sim import Sim
 from agentic_larp._wall import Mode, Wall
-from agentic_larp._widgets import widget_registry
-from agentic_larp.apps._base import AppContext, Screen, run_frames
+from agentic_larp._widgets import PanelWidget, Widget, widget_registry
+from agentic_larp.apps._base import App, AppContext, Screen, run_frames
 
 if sys.version_info >= (3, 12):
     pass
@@ -83,6 +83,12 @@ class Session:
         exit_code: The process exit code the run ends with.
         wall: The agent wall; the first wall stage creates it and the later
             ones share it.
+        apps: Resolved apps by name, or ``None`` to look them up on launch.
+        widgets: Resolved widget factories by region, or ``None`` to look
+            them up when the wall is built.
+        on_error: Called with the name and error of each plugin that fails
+            to load while the session looks registries up; by default the
+            error is raised.
     """
 
     console: Console
@@ -99,6 +105,9 @@ class Session:
     flags: dict[str, str] = field(default_factory=dict)
     exit_code: int = 0
     wall: Wall | None = None
+    apps: Mapping[str, App] | None = None
+    widgets: Mapping[str, Callable[[Wall], Widget | PanelWidget]] | None = None
+    on_error: Callable[[str, Exception], None] | None = None
     _stack: ExitStack | None = field(default=None, init=False, repr=False)
     _live: Live | None = field(default=None, init=False, repr=False)
     _source: KeySource | None = field(default=None, init=False, repr=False)
@@ -230,7 +239,9 @@ class ScreenStage:
                 session.console,
                 grid=session.grid,
                 pace=session.pace,
-                widgets=widget_registry(),
+                widgets=widget_registry(session.on_error)
+                if session.widgets is None
+                else session.widgets,
             )
         self.wall = session.wall
         self.wall.set_mode(self.mode)
@@ -255,7 +266,7 @@ class ScreenStage:
         """Handle a keypress.
 
         Args:
-            key: A key name from :func:`agentic_larp.parse_keys`.
+            key: A key name from :func:`agentic_larp.keys.parse_keys`.
 
         Returns:
             ``False`` once the stage is done.
@@ -344,18 +355,33 @@ class ScreenStage:
         return self.next_stage
 
 
-def stage_registry() -> dict[str, Callable[[], Stage]]:
+def _check_stage(_name: str, value: object) -> Callable[[], Stage]:
+    if not callable(value):
+        message = "not a stage factory"
+        raise LarpError(message)
+    return cast("Callable[[], Stage]", value)
+
+
+def stage_registry(
+    on_error: Callable[[str, Exception], None] | None = None,
+) -> dict[str, Callable[[], Stage]]:
     """Return every stage by name: the built-ins, then installed plugins.
 
     Plugins register under the ``agentic_larp.stages`` entry-point group. A
     plugin with a built-in's name replaces it.
 
+    Args:
+        on_error: Called with the plugin name and the error for each plugin
+            that fails to load, which is then skipped. By default a failing
+            plugin raises ``LarpError`` naming the group and plugin.
+
     Returns:
-        Stage name mapped to a factory that builds the stage.
+        Stage name mapped to a factory that builds the stage. A plugin
+        named :data:`END` is dropped after loading.
     """
     from agentic_larp import _stages  # noqa: PLC0415 - the stages import this module
 
-    registry: dict[str, Callable[[], Stage]] = {
+    builtins: dict[str, Callable[[], Stage]] = {
         "plan": _stages.PlanStage,
         "work": _stages.WorkStage,
         "wrap": _stages.WrapStage,
@@ -365,9 +391,10 @@ def stage_registry() -> dict[str, Callable[[], Stage]]:
         "receipt": _stages.ReceiptStage,
         "abandon": _stages.AbandonStage,
     }
-    for entry_point in importlib.metadata.entry_points(group=STAGE_ENTRY_POINT_GROUP):
-        if entry_point.name != END:
-            registry[entry_point.name] = entry_point.load()
+    registry = load_registry(
+        STAGE_ENTRY_POINT_GROUP, builtins, check=_check_stage, on_error=on_error
+    )
+    registry.pop(END, None)
     return registry
 
 
@@ -404,7 +431,7 @@ def run_flow(
     Raises:
         LarpError: If the flow or a jump names an unregistered stage.
     """  # noqa: DOC502 - the error comes from a helper this calls; callers still need to know
-    registry = stage_registry() if stages is None else stages
+    registry = stage_registry(session.on_error) if stages is None else stages
     for name in flow:
         _look_up(registry, name)
     name: str | None = flow[0] if flow else None

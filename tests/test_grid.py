@@ -3,15 +3,10 @@ import random
 import pytest
 from rich.console import Console
 
-from agentic_larp import (
-    SPOTLIGHT_HOLD,
-    Grid,
-    LarpError,
-    Sim,
-    SwarmSettings,
-    Wall,
-    pick_scenario,
-)
+from agentic_larp import LarpError
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import Sim, SwarmSettings
+from agentic_larp.widgets import SPOTLIGHT_HOLD, Grid, Wall
 
 
 def make_wall(

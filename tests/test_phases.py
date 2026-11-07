@@ -4,15 +4,10 @@ from collections import Counter
 
 import pytest
 
-from agentic_larp import (
-    PHASES,
-    SCENARIOS,
-    TOOLCHAINS,
-    PhasedPolicy,
-    SwarmSettings,
-    main,
-    policy_registry,
-)
+from agentic_larp import main
+from agentic_larp.packs import SCENARIOS, TOOLCHAINS
+from agentic_larp.policies import PHASES, PhasedPolicy, policy_registry
+from agentic_larp.sim import SwarmSettings
 from support import FakeClock
 
 # Which phase may follow which (ignoring "anytime" picks in between).

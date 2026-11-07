@@ -3,7 +3,9 @@ from collections import Counter
 
 import pytest
 
-from agentic_larp import Grammar, GrammarError, LarpError, LogLine, parse_activity
+from agentic_larp import GrammarError, LarpError
+from agentic_larp.packs import Grammar, parse_activity
+from agentic_larp.sim import LogLine
 
 
 def grammar(**rules: object) -> Grammar:

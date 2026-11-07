@@ -1,19 +1,22 @@
 """What every payoff app shares: its context, the screen protocol, and the loop."""
 
+import importlib
+import pkgutil
 import random
 import time
 from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from importlib.metadata import entry_points
-from typing import Protocol, TypeAlias
+from typing import Protocol, cast
 
 from rich.console import Console, RenderableType
 from rich.live import Live
 
+from agentic_larp._errors import LarpError
 from agentic_larp._keys import Keys, KeySource
+from agentic_larp._plugins import load_registry
 
-ENTRY_POINT_GROUP = "agentic_larp.apps"
+APP_ENTRY_POINT_GROUP = "agentic_larp.apps"
 _MAX_DT = 0.25
 
 
@@ -56,7 +59,22 @@ class Screen(Protocol):
         ...
 
 
-App: TypeAlias = Callable[[AppContext], None]
+@dataclass(frozen=True, slots=True)
+class App:
+    """A payoff app: its name, a one-line description, and how to run it.
+
+    Attributes:
+        name: What ``--app`` and ``--play`` call it.
+        description: One line for ``--list``.
+        run: Launches the app.
+    """
+
+    name: str
+    description: str
+    run: Callable[[AppContext], None]
+
+    def __call__(self, context: AppContext) -> None:
+        self.run(context)
 
 
 def run_frames(
@@ -116,57 +134,71 @@ def run_loop(context: AppContext, screen: Screen) -> None:
         )
 
 
-DESCRIPTIONS = {
-    "call": "someone who loves you calls (the agents built her)",
-    "hacker": "hack the planet: scan, dump, crack, trace (mash keys to go faster)",
-    "deploy": "a global prod rollout that definitely won't page anyone",
-    "stonks": "your startup's stock, which only goes up",
-    "dropship": "a dropshipping store: every markup is 1,500%, shipping is 6-8 weeks",
-    "memecoin": "a token launch: the liquidity is locked (trust me)",
-    "wrapper": "an AI startup that is one API call, racing its API bill",
-    "nft": "an NFT mint: a pixel ape, a floor price, and a jpeg",
-    "thoughtleader": "a professional-network post that writes itself, one sentence per line",
-    "clipfarm": "one 3-hour podcast becomes 912 vertical clips with one idea",
-    "matchmaker": "a matchmaking system assigns your match and when it expires",
-}
+def discover_apps(package: str = "agentic_larp.apps") -> dict[str, App]:
+    """Find every app in a package: each module-level ``APP`` of its modules.
 
+    Every module of the package is imported, underscore-named ones included;
+    modules without an ``APP`` are ignored.
 
-def app_registry() -> dict[str, App]:
-    """Return every app by name: the built-ins, then installed plugins.
-
-    Plugins register under the ``agentic_larp.apps`` entry-point group. A
-    plugin with a built-in's name replaces it.
+    Args:
+        package: Dotted name of the package to scan.
 
     Returns:
-        App name mapped to its ``run(context)`` function.
-    """
-    from agentic_larp.apps import (  # noqa: PLC0415 - avoid an import cycle with the package
-        _call,
-        _clipfarm,
-        _deploy,
-        _dropship,
-        _hacker,
-        _matchmaker,
-        _memecoin,
-        _nft,
-        _stonks,
-        _thoughtleader,
-        _wrapper,
-    )
+        App name mapped to the app, sorted by name.
 
-    apps: dict[str, App] = {
-        "call": _call.run,
-        "hacker": _hacker.run,
-        "deploy": _deploy.run,
-        "stonks": _stonks.run,
-        "dropship": _dropship.run,
-        "memecoin": _memecoin.run,
-        "wrapper": _wrapper.run,
-        "nft": _nft.run,
-        "thoughtleader": _thoughtleader.run,
-        "clipfarm": _clipfarm.run,
-        "matchmaker": _matchmaker.run,
-    }
-    for entry_point in entry_points(group=ENTRY_POINT_GROUP):
-        apps[entry_point.name] = entry_point.load()
-    return apps
+    Raises:
+        LarpError: If the package is a plain module, or two modules define
+            an app with the same name.
+    """
+    found: dict[str, App] = {}
+    owners: dict[str, str] = {}
+    path = getattr(importlib.import_module(package), "__path__", None)
+    if path is None:
+        message = f"{package!r} is not a package"
+        raise LarpError(message)
+    for info in pkgutil.iter_modules(path):
+        module_name = f"{package}.{info.name}"
+        app = getattr(importlib.import_module(module_name), "APP", None)
+        if not isinstance(app, App):
+            continue
+        if app.name in found:
+            message = (
+                f"app {app.name!r} is defined by {owners[app.name]} and {module_name}"
+            )
+            raise LarpError(message)
+        found[app.name] = app
+        owners[app.name] = module_name
+    return dict(sorted(found.items()))
+
+
+def _check_app(name: str, value: object) -> App:
+    if isinstance(value, App):
+        return value
+    if callable(value):
+        return App(name, "plugin", cast("Callable[[AppContext], None]", value))
+    message = f"{name!r} is neither an App nor a function"
+    raise LarpError(message)
+
+
+def app_registry(
+    on_error: Callable[[str, Exception], None] | None = None,
+) -> dict[str, App]:
+    """Return every app by name: the built-ins, then installed plugins.
+
+    Plugins register under the ``agentic_larp.apps`` entry-point group, as an
+    :class:`App` or a bare ``run(context)`` function. A plugin with a
+    built-in's name replaces it.
+
+    Args:
+        on_error: Called with the plugin name and the error for each plugin
+            that fails to load or is rejected, which is then skipped. By
+            default a failing plugin raises ``LarpError`` naming the group
+            and plugin.
+
+    Returns:
+        App name mapped to the app. For a plugin the key is the entry-point
+        name, even if an :class:`App` plugin carries another ``name``.
+    """
+    return load_registry(
+        APP_ENTRY_POINT_GROUP, discover_apps(), check=_check_app, on_error=on_error
+    )

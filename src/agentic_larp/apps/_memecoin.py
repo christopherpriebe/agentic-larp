@@ -8,7 +8,7 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext
+from agentic_larp.apps._base import App, AppContext
 from agentic_larp.apps._chart import draw_chart, make_ticker
 from agentic_larp.apps._flow import BREAK_AT, BREAK_SECONDS, push_feed
 from agentic_larp.meltdown import Meltdown, is_doomed, play
@@ -159,3 +159,6 @@ def run(context: AppContext) -> None:
         success=f"🚀 {screen.symbol} did a 100x. you are early. you are always early.",
         failure="it was a rug. it is always a rug.",
     )
+
+
+APP = App("memecoin", "a token launch: the liquidity is locked (trust me)", run)

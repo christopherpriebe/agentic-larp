@@ -6,23 +6,21 @@ from dataclasses import dataclass, field
 import pytest
 from rich.console import Console
 
-from agentic_larp import (
+from agentic_larp import LarpError, main
+from agentic_larp.apps import AppContext
+from agentic_larp.keys import KeySource
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import Sim, SwarmSettings
+from agentic_larp.stages import (
     END,
     FLOW,
     STAGE_ENTRY_POINT_GROUP,
-    KeySource,
-    LarpError,
     ReceiptStage,
     Session,
-    Sim,
     Stage,
-    SwarmSettings,
-    main,
-    pick_scenario,
     run_flow,
     stage_registry,
 )
-from agentic_larp.apps import AppContext
 from support import FakeClock, ScriptedKeys, output
 
 

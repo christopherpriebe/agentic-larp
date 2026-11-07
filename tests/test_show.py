@@ -4,20 +4,17 @@ from typing import TypeVar
 import pytest
 from rich.console import Console
 
-from agentic_larp import (
-    LogLine,
+from agentic_larp.packs import pick_scenario
+from agentic_larp.sim import LogLine, Sim, SwarmSettings
+from agentic_larp.stages import (
     ReadyStage,
     ScreenStage,
     Session,
     ShipStage,
-    Sim,
-    SwarmSettings,
-    Wall,
     WorkStage,
     WrapStage,
-    pick_scenario,
-    render_entry,
 )
+from agentic_larp.widgets import Wall, render_entry
 
 
 def make_sim() -> Sim:

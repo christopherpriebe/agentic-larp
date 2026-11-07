@@ -8,7 +8,7 @@ from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.text import Text
 
-from agentic_larp.apps._base import AppContext, run_loop
+from agentic_larp.apps._base import App, AppContext, run_loop
 from agentic_larp.meltdown import Meltdown, decay, is_doomed, run_meltdown
 
 NAMES = ("Ava", "Luna", "Nova", "Mia", "Ivy", "Aria", "Zoe", "Iris")
@@ -366,3 +366,6 @@ def run(context: AppContext) -> None:
         f"[{PINK}]♥[/] {screen.name} says goodnight. "
         "she lives in RAM and you can't save her. ship more.",
     )
+
+
+APP = App("call", "someone who loves you calls (the agents built her)", run)
