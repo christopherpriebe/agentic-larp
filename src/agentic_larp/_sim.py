@@ -3,13 +3,14 @@
 import math
 import random
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from agentic_larp._errors import LarpError
 from agentic_larp._grammar import Grammar, parse_activity
 from agentic_larp._log import LogLine
 from agentic_larp._packs import Scenario
+from agentic_larp._policies import ChoicePolicy, RandomPolicy
 
 SPINNER_VERBS = (
     "Frothing",
@@ -57,6 +58,8 @@ class SwarmSettings:
         activity: How fast the agents work; never affects the clock.
         lead_model: Name prefix for lead agents.
         intern_model: Name prefix for interns.
+        policy: Factory for the choice policy; each lead agent and each
+            intern gets its own instance.
     """
 
     agents: int = 8
@@ -64,6 +67,7 @@ class SwarmSettings:
     activity: float = 1.0
     lead_model: str = "maestro"
     intern_model: str = "intern"
+    policy: Callable[[], ChoicePolicy] = RandomPolicy
 
 
 @dataclass(slots=True)
@@ -152,6 +156,9 @@ class Sim:
         self.task = task or self.scenarios[0].task
         self._by_key = {scenario.key: scenario for scenario in self.scenarios}
         self._grammars: dict[tuple[str, str], Grammar] = {}
+        self._policy_factory = settings.policy
+        self._policies: dict[str, ChoicePolicy] = {}
+        self._intern_policies: dict[str, ChoicePolicy] = {}
         self.activity = settings.activity
         self.lead_model = settings.lead_model
         self.intern_model = settings.intern_model
@@ -168,6 +175,7 @@ class Sim:
             self.spawn_agent(quiet=True)
         for index in range(settings.interns):
             intern = Intern(name=f"{self.intern_model}-{index + 1:02d}")
+            self._intern_policies[intern.name] = self._policy_factory()
             self._assign_intern(intern)
             if self.rng.random() < _INTERNS_DONE_AT_START:
                 intern.is_done = True
@@ -263,6 +271,7 @@ class Sim:
             agent.calls = self.rng.randint(20, 60)
         else:
             self.reports.append((self.orchestrator, f"spawning {agent.name} → {area}"))
+        self._policies[agent.name] = self._policy_factory()
         self.agents.append(agent)
         return agent
 
@@ -382,14 +391,21 @@ class Sim:
             queue.append(LogLine("quip", f'Re: "{text[:40]}". On it.'))
         first_line = rng.randint(4, 220)
         for _ in range(_REROLLS):
-            lines = parse_activity(grammar.expand("action", rng, bindings), first_line)
+            lines = parse_activity(
+                grammar.expand(
+                    "action", rng, bindings, policy=self._policies[agent.name]
+                ),
+                first_line,
+            )
             if self.interns or all(line.label != "Task" for line in lines):
                 break
         else:
             lines = [line for line in lines if line.label != "Task"]
         queue.extend(lines)
         if rng.random() < _QUIP_CHANCE:
-            quip = grammar.expand("quip", rng, bindings)
+            quip = grammar.expand(
+                "quip", rng, bindings, policy=self._policies[agent.name]
+            )
             queue.append(LogLine("quip", quip))
             short = file.rsplit("/", 1)[-1]
             self.reports.append((agent.name, f"{short}: {_lower_first(quip)}"))
@@ -398,7 +414,10 @@ class Sim:
         grammar = self._grammar_for(agent)
         file = self.rng.choice(agent.files)
         final = grammar.expand(
-            "final", self.rng, self._bindings(agent, file, agent.area)
+            "final",
+            self.rng,
+            self._bindings(agent, file, agent.area),
+            policy=self._policies[agent.name],
         )
         agent.log.append(LogLine("quip", final))
         agent.log.append(LogLine("done", f"✓ {agent.area} done · {agent.calls} calls"))
@@ -419,7 +438,9 @@ class Sim:
             "intern": intern.name,
             "n": str(rng.choice(_NUMBERS)),
         }
-        intern.task = scenario.grammar.expand("intern_task", rng, bindings)
+        intern.task = scenario.grammar.expand(
+            "intern_task", rng, bindings, policy=self._intern_policies[intern.name]
+        )
         if not keep_time:
             intern.is_done = False
             intern.until = self.now + rng.uniform(2, 9)

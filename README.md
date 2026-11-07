@@ -46,6 +46,7 @@ larp "build me a girlfriend"      # scenario picked from keywords in your task
 larp "uber for cats"              # anything else: agents work on cats.ts, Uber.tsx, ...
 larp -s hacker                    # force a scenario
 larp -s hacker -s prod            # mix packs: agents alternate between them
+larp --policy varied              # no back-to-back repeats in the agents' output
 larp --grid 3x2                   # six feeds on screen, a spotlight rotates through the rest
 larp --pack ./zebra.toml -s zebra # your own pack
 larp --then "cmatrix"             # after shipping, run any real command
@@ -178,6 +179,46 @@ An `action` expands to a script with one tagged line per row:
 | `add: code` / `del: code` | a green or red diff line, numbered in order |
 | `ok:` / `fail:` / `note:` | a result line in green, red, or dim |
 | `say:` | a line of agent chatter |
+
+### Choice policies
+
+When a rule has several alternatives, a policy decides which one is used.
+`--policy NAME` selects it (`larp --list` shows the names). Each lead agent and
+each intern gets its own policy instance.
+
+| Policy | Behavior |
+| --- | --- |
+| `random` (default) | weighted random, no memory |
+| `varied` | never repeats a rule's previous pick, and shies away from older ones (still follows weights) |
+
+A policy is any object with `choose(symbol, alternatives, rng) -> int`, where
+`alternatives` is the rule's `(text, weight)` pairs and the result is the index
+to use. It may keep state. Register a class or factory under the
+`agentic_larp.policies` entry-point group:
+
+```python
+import random
+from collections.abc import Sequence
+
+
+class Heaviest:
+    def choose(
+        self,
+        symbol: str,
+        alternatives: Sequence[tuple[str, float]],
+        rng: random.Random,
+    ) -> int:
+        return max(range(len(alternatives)), key=lambda i: alternatives[i][1])
+```
+
+```toml
+[project.entry-points."agentic_larp.policies"]
+heaviest = "my_package.policies:Heaviest"
+```
+
+Then run `larp --policy heaviest`. A plugin that fails to load prints a
+warning and is skipped; choosing something that is not a policy is a usage
+error.
 
 ### Writing your own app
 

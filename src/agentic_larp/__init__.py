@@ -21,6 +21,13 @@ from agentic_larp._packs import (
     discover_scenarios,
     load_scenario,
 )
+from agentic_larp._policies import (
+    POLICY_ENTRY_POINT_GROUP,
+    ChoicePolicy,
+    RandomPolicy,
+    VariedPolicy,
+    policy_registry,
+)
 from agentic_larp._scenarios import generic_scenario, pick_scenario, task_words
 from agentic_larp._sim import (
     Agent,
@@ -34,10 +41,12 @@ from agentic_larp._theater import SPOTLIGHT_HOLD, ShowSettings, Theater, render_
 
 __all__ = [
     "BOUND_SYMBOLS",
+    "POLICY_ENTRY_POINT_GROUP",
     "REQUIRED_SYMBOLS",
     "SCENARIOS",
     "SPOTLIGHT_HOLD",
     "Agent",
+    "ChoicePolicy",
     "Grammar",
     "GrammarError",
     "Grid",
@@ -46,11 +55,13 @@ __all__ = [
     "Keys",
     "LarpError",
     "LogLine",
+    "RandomPolicy",
     "Scenario",
     "ShowSettings",
     "Sim",
     "SwarmSettings",
     "Theater",
+    "VariedPolicy",
     "__version__",
     "base_grammar",
     "build_parser",
@@ -66,6 +77,7 @@ __all__ = [
     "parse_activity",
     "parse_keys",
     "pick_scenario",
+    "policy_registry",
     "render_entry",
     "task_words",
 ]
