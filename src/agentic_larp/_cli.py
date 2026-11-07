@@ -3,7 +3,6 @@
 import argparse
 import math
 import random
-import subprocess
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
 from pathlib import Path
@@ -13,6 +12,7 @@ from rich.console import Console
 from rich.markup import escape
 
 from agentic_larp._errors import GrammarError, LarpError
+from agentic_larp._flow import FLOW, Session, run_flow
 from agentic_larp._grid import Grid
 from agentic_larp._keys import is_interactive
 from agentic_larp._packs import (
@@ -26,21 +26,17 @@ from agentic_larp._packs import (
 from agentic_larp._policies import ChoicePolicy, policy_registry
 from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import Sim, SwarmSettings
-from agentic_larp._theater import (
-    PANEL_MIN_HEIGHT,
-    PANEL_MIN_WIDTH,
-    ShowSettings,
-    Theater,
-)
-from agentic_larp.apps import DESCRIPTIONS, App, AppContext, Outcome, app_registry
+from agentic_larp._stages import LaunchStage, describe_unknown_app
+from agentic_larp._wall import PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH
+from agentic_larp.apps import DESCRIPTIONS, App, Outcome, app_registry
 
 _NON_INTERACTIVE_AUTO = 6.0
 _MAX_AGENTS = 12
 _CHROME_ROWS = 6
 _SWARM_ROWS = 5
 _INTERRUPTED = 130
-_UNKNOWN_APP = 2
 _BAD_PACK = 2
+_UNKNOWN_APP = 2
 
 
 def _parse_speed(text: str) -> float:
@@ -255,13 +251,20 @@ def main(argv: list[str] | None = None) -> int:
         auto = _NON_INTERACTIVE_AUTO
     try:
         if args.play:
-            task = " ".join(args.task) or "the thing"
-            return _launch(
-                args.play,
-                apps,
-                AppContext(console=console, task=task, auto=auto, outcome=args.outcome),
+            if args.play not in apps:
+                console.print(describe_unknown_app(args.play, apps))
+                return _UNKNOWN_APP
+            session = Session(
+                console=console,
+                task=" ".join(args.task) or "the thing",
+                sim=None,
+                rng=random.Random(args.seed),
+                app=args.play,
+                auto=auto,
+                outcome=args.outcome,
             )
-        return _run_show(args, console, apps, auto, packs)
+            return run_flow(session, ("launch",), {"launch": LaunchStage})
+        return _run_show(args, console, auto, packs)
     except KeyboardInterrupt:
         console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
         return _INTERRUPTED
@@ -270,7 +273,6 @@ def main(argv: list[str] | None = None) -> int:
 def _run_show(
     args: argparse.Namespace,
     console: Console,
-    apps: dict[str, App],
     auto: float | None,
     packs: Mapping[str, Scenario],
 ) -> int:
@@ -305,41 +307,22 @@ def _run_show(
         policy=args.policy_factory,
     )
     try:
-        return _play_show(args, console, apps, auto, Sim(scenarios, settings, rng))
+        sim = Sim(scenarios, settings, rng)
+        session = Session(
+            console=console,
+            task=sim.task,
+            sim=sim,
+            rng=rng,
+            app=(args.app or sim.scenarios[0].app).lower(),
+            then=args.then,
+            auto=auto,
+            grid=grid,
+            outcome=args.outcome,
+        )
+        return run_flow(session, FLOW)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
-
-
-def _play_show(
-    args: argparse.Namespace,
-    console: Console,
-    apps: dict[str, App],
-    auto: float | None,
-    sim: Sim,
-) -> int:
-    grid = cast("Grid | None", args.grid)
-    app = (args.app or sim.scenarios[0].app).lower()
-    label = args.then.split()[0] if args.then else app.replace("none", "")
-    show = ShowSettings(launch_label=label, auto=auto, grid=grid)
-    if not Theater(sim, console, show).run():
-        console.print(
-            f"[dim]{len(sim.agents)} agents dismissed. nothing was built. as always.[/]"
-        )
-        return 0
-    console.print(
-        f"[bold green]✓ shipped[/] [bold]{escape(sim.task)}[/] [dim]· {len(sim.agents)} agents · "
-        f"{sim.total_calls:,} tool calls · ${sim.cost:,.2f} of imaginary compute[/]",
-    )
-    if args.then:
-        return subprocess.call(args.then, shell=True)  # noqa: S602 - the user's own command; running it is the feature
-    if app == "none":
-        return 0
-    return _launch(
-        app,
-        apps,
-        AppContext(console=console, task=sim.task, auto=auto, outcome=args.outcome),
-    )
 
 
 def _print_unwrapped(console: Console, markup: str) -> None:
@@ -383,13 +366,3 @@ def _print_list(
     console.print("\n[bold]apps[/]  (--app NAME or --play NAME)")
     for name in apps:
         console.print(f"  [cyan]{name:<11}[/] {DESCRIPTIONS.get(name, 'plugin')}")
-
-
-def _launch(name: str, apps: dict[str, App], context: AppContext) -> int:
-    if name not in apps:
-        context.console.print(
-            f"[red]no app called {escape(repr(name))}.[/] try: {', '.join(apps)}"
-        )
-        return _UNKNOWN_APP
-    apps[name](context)
-    return 0

@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
     # Layout, live redraws, and styled text for the whole TUI.
     "rich>=13.7",
+    "typing-extensions>=4.4 ; python_full_version < '3.12'",
 ]
 
 [project.scripts]

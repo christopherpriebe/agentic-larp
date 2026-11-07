@@ -4,6 +4,17 @@ from importlib.metadata import version
 
 from agentic_larp._cli import build_parser, fit_agents, main
 from agentic_larp._errors import GrammarError, LarpError
+from agentic_larp._flow import (
+    END,
+    FLOW,
+    STAGE_ENTRY_POINT_GROUP,
+    ScreenStage,
+    Session,
+    Stage,
+    run_flow,
+    run_screen,
+    stage_registry,
+)
 from agentic_larp._grammar import (
     BOUND_SYMBOLS,
     REQUIRED_SYMBOLS,
@@ -40,16 +51,29 @@ from agentic_larp._sim import (
     format_duration,
     format_tokens,
 )
-from agentic_larp._theater import SPOTLIGHT_HOLD, ShowSettings, Theater, render_entry
+from agentic_larp._stages import (
+    AbandonStage,
+    LaunchStage,
+    ReadyStage,
+    ReceiptStage,
+    ShipStage,
+    WorkStage,
+    WrapStage,
+)
+from agentic_larp._wall import SPOTLIGHT_HOLD, Wall, render_entry
 
 __all__ = [
     "BOUND_SYMBOLS",
+    "END",
+    "FLOW",
     "PHASES",
     "POLICY_ENTRY_POINT_GROUP",
     "REQUIRED_SYMBOLS",
     "SCENARIOS",
     "SPOTLIGHT_HOLD",
+    "STAGE_ENTRY_POINT_GROUP",
     "TOOLCHAINS",
+    "AbandonStage",
     "Agent",
     "ChoicePolicy",
     "Grammar",
@@ -59,15 +83,23 @@ __all__ = [
     "KeySource",
     "Keys",
     "LarpError",
+    "LaunchStage",
     "LogLine",
     "PhasedPolicy",
     "RandomPolicy",
+    "ReadyStage",
+    "ReceiptStage",
     "Scenario",
-    "ShowSettings",
+    "ScreenStage",
+    "Session",
+    "ShipStage",
     "Sim",
+    "Stage",
     "SwarmSettings",
-    "Theater",
     "VariedPolicy",
+    "Wall",
+    "WorkStage",
+    "WrapStage",
     "__version__",
     "base_grammar",
     "build_parser",
@@ -85,6 +117,9 @@ __all__ = [
     "pick_scenario",
     "policy_registry",
     "render_entry",
+    "run_flow",
+    "run_screen",
+    "stage_registry",
     "task_words",
 ]
 
