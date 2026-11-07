@@ -17,7 +17,7 @@ from support import FakeClock, ScriptedKeys
 
 
 def make_theater(console: Console, settings: ShowSettings | None = None) -> Theater:
-    sim = Sim(pick_scenario(None, "prod"), SwarmSettings(agents=6), random.Random(4))
+    sim = Sim([pick_scenario(None, "prod")], SwarmSettings(agents=6), random.Random(4))
     return Theater(sim, console, settings)
 
 

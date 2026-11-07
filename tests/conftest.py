@@ -1,6 +1,7 @@
 import io
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -34,3 +35,12 @@ def console() -> Console:
         color_system=None,
         legacy_windows=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def config_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the pack config folder at an empty temp dir so no test reads the real one."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    packs = tmp_path / "config" / "agentic-larp" / "packs"
+    packs.mkdir(parents=True)
+    return packs

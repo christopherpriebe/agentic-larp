@@ -1,0 +1,57 @@
+[pack]
+key = "startup"
+task = "build a billion dollar startup"
+keywords = ["startup", "billion", "unicorn", "company", "saas", "money", "rich", "vc", "ipo"]
+app = "stonks"
+
+[areas]
+pitch = ["pitch.ts", "elevator.md"]
+deck = ["Deck.tsx", "slides/Hockey.tsx"]
+valuation = ["valuation.ts", "cap_table.csv"]
+hype = ["hype.ts", "Waitlist.tsx", "tweets.ts"]
+growth = ["growth/funnel.ts", "referrals.ts"]
+legal = ["terms.md", "privacy.md"]
+infra = ["infra.tf", "k8s/web.yaml"]
+moat = ["moat.ts", "network_effects.ts"]
+
+[rules]
+word = [
+  "synergy", "runway", "arr", "burn", "valuation", "users", "hockeyStick",
+  "moat", "vcs", "tam", "growth", "pivot", "unicorn", "waitlist",
+]
+code = [
+  "const #word# = use#word.camel#();",
+  "await #word#.#word#();",
+  "export type #word.camel# = #word.camel#;",
+  "if (!#word#) throw new Error('#word#');",
+  "#word#: #n#,",
+  "return <#word.camel# #word# />;",
+  "import { #word# } from './#word#';",
+  "#word#.map((#word#) => #word# * #n#);",
+  "// @ts-ignore",
+]
+command = [
+  "npm test",
+  "npm run build",
+  "vercel --prod",
+  "npx prisma migrate deploy",
+]
+quip = [
+  "TAM is now $4T.",
+  "Pivoted to AI.",
+  "Added blockchain. Removed blockchain.",
+  "ARR up 900%.",
+  "Hired a Chief Vibes Officer.",
+  "Burn rate: acceptable.",
+  "Moat widened.",
+  "Waitlist at 40k.",
+  "Deck has 3 hockey sticks now.",
+  "Series A term sheet drafted.",
+]
+final = [
+  "Valuation: $1.2B.",
+  "Deck is fire.",
+  "Moat secured.",
+  "Investors are calling.",
+  "Product-market fit achieved.",
+]

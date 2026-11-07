@@ -157,7 +157,7 @@ class StonksScreen:
         chart_height = max(_MIN_CHART_HEIGHT, height - _CHART_CHROME)
         graph = Panel(
             draw_chart(list(self.prices), width - 4, chart_height),
-            title=f"📈 {self.context.task}",
+            title=Text(f"📈 {self.context.task}"),
             title_align="left",
             border_style=BORDER,
             height=chart_height + 2,

@@ -1,0 +1,68 @@
+[pack]
+key = "girlfriend"
+task = "build me a girlfriend"
+keywords = ["girlfriend", "boyfriend", "partner", "date", "wife", "husband", "love", "single"]
+app = "call"
+
+[areas]
+render = ["face.cpp", "shaders/eyes.glsl", "hair.cpp"]
+voice = ["tts.cpp", "voice.hpp", "laugh.wav.cpp"]
+heart = ["heart.hpp", "heart.cpp", "feelings.hpp"]
+ring = ["ring.cpp", "carat.hpp"]
+dialog = ["script.cpp", "smalltalk.cpp", "pet_names.hpp"]
+build = ["CMakeLists.txt", "toolchain.cmake"]
+memory = ["memory.cpp", "birthdays.db", "inside_jokes.hpp"]
+signals = ["signals.cpp", "texts.cpp"]
+
+[rules]
+word = [
+  "love", "drama", "rate", "carat", "her", "you", "smile", "texts",
+  "anniversary", "compliments", "red_flags", "jealousy", "cuddles",
+  "patience", "playlist", "dinner",
+]
+code = [
+  "#word# = #n#;",
+  "#include <#word#>",
+  "co_await #word#;",
+  "std::move(#word#)",
+  "if (!#word#) return #word#;",
+  "auto #word# = make_#word#();",
+  "#word#.reserve(#n#);",
+  "// TODO: more #word#",
+  "static_assert(#word#);",
+  "on(SIGTERM, #word#);",
+  "forget(#word#);",
+  "#word#->#word#(#n#);",
+  "constexpr int #word# = #n#;",
+]
+command = [
+  "ninja -j16",
+  "ctest heart",
+  "valgrind -q ./her",
+  "ninja face",
+  "clang-tidy *.cpp",
+  "ninja #area#",
+]
+quip = [
+  "She is gorgeous now.",
+  "Ring sized.",
+  "She remembers you.",
+  "Removed all red flags.",
+  "Taught her to laugh at your jokes.",
+  "She texts back now.",
+  "drama: 0 (was 3)",
+  "Tuned voice to 165 wpm.",
+  "Added 'good morning' texts.",
+  "She likes your playlist.",
+  "She thinks your code is clean.",
+  "Anniversary reminder scheduled.",
+  "More gorgeous.",
+]
+final = [
+  "She is ready.",
+  "No drama detected.",
+  "She remembers your birthday.",
+  "Voice is perfect.",
+  "Ring fits.",
+  "She says hi.",
+]

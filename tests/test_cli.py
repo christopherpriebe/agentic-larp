@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from agentic_larp import build_parser, fit_agents, main
@@ -114,3 +116,171 @@ def test_ctrl_c_exits_politely(
     monkeypatch.setattr("time.sleep", interrupt)
     assert main(["--play", "stonks", "--auto", "5"]) == 130
     assert "ctrl-c" in capsys.readouterr().out
+
+
+PACK = """
+[pack]
+key = "zebra"
+task = "build a zebra"
+keywords = ["zebra"]
+app = "stonks"
+
+[areas]
+stripes = ["stripes.py"]
+"""
+
+
+def test_list_includes_packs_from_the_config_dir(
+    capsys: pytest.CaptureFixture[str],
+    config_home: Path,
+) -> None:
+    (config_home / "zebra.toml").write_text(PACK, encoding="utf-8")
+    assert main(["--list"]) == 0
+    assert "zebra" in capsys.readouterr().out
+
+
+def test_broken_config_pack_warns_and_is_skipped(
+    capsys: pytest.CaptureFixture[str],
+    config_home: Path,
+) -> None:
+    (config_home / "broken.toml").write_text("[pack", encoding="utf-8")
+    (config_home / "zebra.toml").write_text(PACK, encoding="utf-8")
+    assert main(["--list"]) == 0
+    text = capsys.readouterr().out
+    assert "warning" in text
+    assert "broken.toml" in text
+    assert "zebra" in text
+
+
+def test_broken_pack_flag_is_an_error(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    broken = tmp_path / "broken.toml"
+    broken.write_text("[pack", encoding="utf-8")
+    assert main(["--pack", str(broken), "--list"]) == 2
+    assert "broken.toml" in capsys.readouterr().out
+
+
+def test_pack_flag_runs_a_custom_pack_end_to_end(
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+    tmp_path: Path,
+) -> None:
+    pack = tmp_path / "zebra.toml"
+    pack.write_text(PACK, encoding="utf-8")
+    args = [
+        "--pack",
+        str(pack),
+        "-s",
+        "zebra",
+        "--auto",
+        "1",
+        "--speed",
+        "4",
+        "--app",
+        "none",
+    ]
+    assert main(args) == 0
+    assert "✓ shipped build a zebra" in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_repeated_scenario_flags_mix_packs(
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    args = [
+        "-s",
+        "hacker",
+        "-s",
+        "girlfriend",
+        "-n",
+        "4",
+        "--auto",
+        "1",
+        "--speed",
+        "4",
+        "--app",
+        "none",
+    ]
+    assert main(args) == 0
+    assert "✓ shipped hack the mainframe · 4 agents" in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_unknown_scenario_is_an_error(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["-s", "nope", "--auto", "1"]) == 2
+    assert "no pack called 'nope'" in capsys.readouterr().out
+
+
+def test_grid_flag_sets_the_agent_count(
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    assert (
+        main(
+            [
+                "-s",
+                "prod",
+                "--grid",
+                "2x2",
+                "--auto",
+                "1",
+                "--speed",
+                "4",
+                "--app",
+                "none",
+            ]
+        )
+        == 0
+    )
+    assert "· 4 agents ·" in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_grid_with_more_agents_runs_them_all(
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    args = [
+        "-s",
+        "prod",
+        "--grid",
+        "2x1",
+        "-n",
+        "9",
+        "--auto",
+        "1",
+        "--speed",
+        "4",
+        "--app",
+        "none",
+    ]
+    assert main(args) == 0
+    assert "· 9 agents ·" in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_bad_grid_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        main(["--grid", "0x2"])
+    assert "COLSxROWS" in capsys.readouterr().err
+
+
+def test_pack_text_is_shown_literally_not_as_markup(
+    capsys: pytest.CaptureFixture[str],
+    config_home: Path,
+    clock: FakeClock,
+) -> None:
+    (config_home / "brackets.toml").write_text(
+        PACK.replace('key = "zebra"', 'key = "brackets"').replace(
+            'task = "build a zebra"', 'task = "fix [/] the [beta] bug"'
+        ),
+        encoding="utf-8",
+    )
+    assert main(["--list"]) == 0
+    assert "fix [/] the [beta] bug" in capsys.readouterr().out
+    assert main(["-s", "brackets", "--auto", "1", "--speed", "4", "--app", "none"]) == 0
+    assert "✓ shipped fix [/] the [beta] bug" in capsys.readouterr().out
+    assert clock.now > 1.0

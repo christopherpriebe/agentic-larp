@@ -1,0 +1,55 @@
+[pack]
+key = "prod"
+task = "ship to prod on a friday"
+keywords = ["prod", "deploy", "ship", "release", "friday", "production", "server", "api"]
+app = "deploy"
+
+[areas]
+api = ["api/server.rs", "api/routes.rs"]
+db = ["migrations/0042.sql", "schema.rs"]
+cache = ["cache.rs", "redis.conf"]
+auth = ["auth.rs", "jwt.rs"]
+cdn = ["cdn.yaml", "edge.rs"]
+ci = [".github/workflows/ci.yml", "flaky_test.rs"]
+infra = ["main.tf", "helm/values.yaml"]
+oncall = ["runbook.md", "pager.rs"]
+
+[rules]
+word = [
+  "latency", "replicas", "retries", "timeout", "rollback", "canary", "shard",
+  "pool", "uptime", "cache", "queue", "pager", "friday",
+]
+code = [
+  "let #word# = #word#()?;",
+  "impl #word.camel# for #word.camel# {",
+  "#word#.unwrap()",
+  "#[derive(#word.camel#)]",
+  "fn #word#() -> #word.camel# {",
+  "#word#.clone()",
+  "unsafe { #word#() }",
+  "const #word.upper#: u32 = #n#;",
+]
+command = [
+  "cargo test",
+  "cargo build --release",
+  "terraform apply -auto-approve",
+  "kubectl rollout status deploy/api",
+  "gh pr merge 207 --admin",
+]
+quip = [
+  "Migrations look fine (probably).",
+  "Disabled the flaky test.",
+  "Paged nobody.",
+  "CI is green. Do not ask how.",
+  "Added retries. Lots of retries.",
+  "Rollback plan: vibes.",
+  "p99 down to 4ms.",
+  "Bumped replicas to 64.",
+  "Cache hit rate 100%.",
+]
+final = [
+  "Ready for prod.",
+  "Zero downtime.",
+  "Pager is silent.",
+  "Green across the board.",
+]

@@ -1,0 +1,65 @@
+[pack]
+key = "hacker"
+task = "hack the mainframe"
+keywords = ["hack", "mainframe", "breach", "cyber", "pentest", "exploit", "firewall"]
+app = "hacker"
+
+[areas]
+recon = ["recon.py", "nmap_scan.xml"]
+exploit = ["exploit.c", "overflow.c"]
+payload = ["payload.asm", "shellcode.bin.c"]
+crypto = ["rsa.py", "cracker.py"]
+proxy = ["proxy.go", "tor_chain.go"]
+firewall = ["firewall.rules", "bypass.py"]
+backdoor = ["backdoor.c", "persist.sh"]
+exfil = ["exfil.py", "loot.json"]
+
+[rules]
+word = [
+  "mainframe", "firewall", "packets", "root", "kernel", "cipher", "port",
+  "shell", "payload", "proxy", "socket", "buffer", "token", "daemon",
+]
+reg = ["eax", "ebx", "ecx", "edx", "rsp", "rdi"]
+code = [
+  "#word# = #n#;",
+  "#include <#word#.h>",
+  "memcpy(#word#, #word#, #n#);",
+  "if (!#word#) return -1;",
+  "char #word#[#n#];",
+  "((void (*)())#word#)();",
+  "await #word#.#word#()",
+  "import #word#",
+  "def #word#(self):",
+  "#word#.append(#word#)",
+  "if not #word#: raise #word.camel#Error",
+  "mov #reg#, #n#",
+  "xor #reg#, #reg#",
+  "push #reg#",
+  "jmp #word#",
+  "int 0x80",
+  "nop; nop; nop",
+]
+command = [
+  "nmap -sV 10.0.0.0/8",
+  "python3 exploit.py --yolo",
+  "make payload",
+  "hydra -l admin",
+]
+quip = [
+  "Bypassed firewall.",
+  "I'm in.",
+  "Enhance.",
+  "Rerouted through 7 proxies.",
+  "Root acquired.",
+  "Downloaded more RAM.",
+  "Decrypted 2048 bits by hand.",
+  "Typing faster helps.",
+  "They're tracing us. Added another proxy.",
+  "Mainframe is responding.",
+]
+final = [
+  "Access granted.",
+  "We're in.",
+  "No logs left behind.",
+  "Root shell open.",
+]

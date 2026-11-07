@@ -16,8 +16,10 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from agentic_larp._grid import Grid
 from agentic_larp._keys import Keys, KeySource
-from agentic_larp._sim import Agent, LogLine, Sim, format_duration, format_tokens
+from agentic_larp._log import LogLine
+from agentic_larp._sim import Agent, Sim, format_duration, format_tokens
 
 SPINNER = "·✢✳✶✻✽✻✶✳✢"
 ACCENT = "#e8875b"
@@ -36,6 +38,7 @@ _AUTO_SHIP_DELAY = 2.5
 _LAUNCH_SECONDS = 3.2
 _LAUNCH_LINE_SECONDS = 0.45
 _MAX_DT = 0.25
+SPOTLIGHT_HOLD = 2.0
 
 
 def spinner(now: float, offset: float = 0.0) -> str:
@@ -111,6 +114,8 @@ class ShowSettings:
         pace: Speed multiplier for everything, including stage timings.
         fps: Frames per second.
         keys: Key source to read from; ``None`` reads the real keyboard.
+        grid: Fixed feed grid with spotlight rotation, or ``None`` to fit the
+            terminal.
     """
 
     launch_label: str = ""
@@ -118,6 +123,7 @@ class ShowSettings:
     pace: float = 1.0
     fps: int = 20
     keys: KeySource | None = None
+    grid: Grid | None = None
 
 
 class Theater:
@@ -142,6 +148,11 @@ class Theater:
         self.pace = settings.pace
         self.fps = settings.fps
         self.keys = settings.keys
+        self.grid = settings.grid
+        self._spotlight: list[Agent] = []
+        self._shown_since: list[float] = []
+        self._last_shown: dict[str, float] = {}
+        self._last_swap = 0.0
         self.buffer = ""
         self.stage = "running"
         self.stage_at = 0.0
@@ -213,6 +224,7 @@ class Theater:
         """
         sim = self.sim
         sim.tick(dt * self.pace)
+        self._rotate_spotlight()
         if self.auto is not None and (
             (self.stage == "running" and sim.now >= self.auto)
             or (self.stage == "ready" and sim.now - self.stage_at > _AUTO_SHIP_DELAY)
@@ -222,6 +234,56 @@ class Theater:
             self.stage, self.stage_at = "ready", sim.now
             done = f"all {len(sim.agents)} agents done. ready to ship."
             sim.reports.append((sim.orchestrator, done))
+
+    def visible_agents(self) -> list[Agent]:
+        """Return the agents that have a panel on screen right now.
+
+        Returns:
+            Every agent when there is no grid or it has room for all of them;
+            otherwise exactly one agent per grid cell.
+        """
+        if not self._is_spotlight_active():
+            return list(self.sim.agents)
+        return list(self._spotlight)
+
+    def _is_spotlight_active(self) -> bool:
+        grid, agents = self.grid, self.sim.agents
+        if grid is None or len(agents) <= grid.cells:
+            self._spotlight = []
+            return False
+        if len(self._spotlight) != grid.cells:
+            self._spotlight = agents[: grid.cells]
+            self._shown_since = [self.sim.now] * grid.cells
+        return True
+
+    def _rotate_spotlight(self) -> None:
+        if not self._is_spotlight_active():
+            return
+        now = self.sim.now
+        for agent in self._spotlight:
+            self._last_shown[agent.name] = now
+        if now - self._last_swap < SPOTLIGHT_HOLD / len(self._spotlight):
+            return
+        ready = [
+            cell
+            for cell, since in enumerate(self._shown_since)
+            if now - since >= SPOTLIGHT_HOLD
+        ]
+        shown = {agent.name for agent in self._spotlight}
+        waiting = [agent for agent in self.sim.agents if agent.name not in shown]
+        if not ready or not waiting:
+            return
+        cell = min(ready, key=lambda index: self._shown_since[index])
+        incoming = min(
+            waiting,
+            key=lambda agent: (
+                self._last_shown.get(agent.name, -math.inf),
+                -agent.last_active,
+            ),
+        )
+        self._spotlight[cell] = incoming
+        self._shown_since[cell] = now
+        self._last_swap = now
 
     @property
     def is_launched(self) -> bool:
@@ -270,8 +332,12 @@ class Theater:
         """
         width, height = self.console.size
         sim = self.sim
-        columns = max(1, min(len(sim.agents), width // PANEL_MIN_WIDTH))
-        rows = math.ceil(len(sim.agents) / columns)
+        agents = self.visible_agents()
+        if self.grid is None:
+            columns = max(1, min(len(agents), width // PANEL_MIN_WIDTH))
+            rows = math.ceil(len(agents) / columns)
+        else:
+            columns, rows = self.grid.columns, self.grid.rows
         swarm_rows = 0
         if sim.interns:
             per_row = max(1, width // _TILE_WIDTH)
@@ -299,7 +365,7 @@ class Theater:
         for row in range(rows):
             cells = [
                 Layout(self.render_agent(agent))
-                for agent in sim.agents[row * columns : (row + 1) * columns]
+                for agent in agents[row * columns : (row + 1) * columns]
             ]
             cells += [Layout(Text(" ")) for _ in range(columns - len(cells))]
             row_layout = Layout()
@@ -336,7 +402,7 @@ class Theater:
         title = Text.assemble(
             ("❯ ", "bold cyan"),
             (sim.orchestrator, "bold"),
-            (f"  {sim.scenario.task} ", "dim italic"),
+            (f"  {sim.task} ", "dim italic"),
         )
         top.add_row(title, Rule(style=BORDER), Text(" ") + status)
 

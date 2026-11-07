@@ -14,7 +14,7 @@ from agentic_larp import (
 
 def make_sim(settings: SwarmSettings | None = None, seed: int = 7) -> Sim:
     return Sim(
-        pick_scenario(None, "girlfriend"),
+        [pick_scenario(None, "girlfriend")],
         settings or SwarmSettings(),
         random.Random(seed),
     )

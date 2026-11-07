@@ -2,7 +2,14 @@ import random
 
 import pytest
 
-from agentic_larp import SCENARIOS, generic_scenario, pick_scenario, task_words
+from agentic_larp import (
+    BOUND_SYMBOLS,
+    REQUIRED_SYMBOLS,
+    SCENARIOS,
+    generic_scenario,
+    pick_scenario,
+    task_words,
+)
 
 
 @pytest.mark.parametrize(
@@ -50,8 +57,16 @@ def test_generic_scenario_turns_task_words_into_areas() -> None:
     assert list(scenario.areas)[:2] == ["uber", "cats"]
     assert len(scenario.areas) == 8
     assert scenario.areas["cats"] == ("cats.ts", "Cats.tsx", "cats.test.ts")
-    assert "Cats is done." in scenario.quips
+    rng = random.Random(2)
+    quips = {scenario.grammar.expand("quip", rng) for _ in range(500)}
+    assert "Cats is done." in quips
     assert scenario.app in {"deploy", "stonks"}
+
+
+def test_generic_scenario_is_a_complete_pack() -> None:
+    scenario = generic_scenario("uber for cats", random.Random(1))
+    for area in scenario.areas:
+        scenario.grammar_for(area).check(required=REQUIRED_SYMBOLS, bound=BOUND_SYMBOLS)
 
 
 def test_every_builtin_scenario_is_complete() -> None:
@@ -59,7 +74,4 @@ def test_every_builtin_scenario_is_complete() -> None:
         assert scenario.key == key
         assert len(scenario.areas) == 8
         assert all(scenario.areas.values())
-        assert scenario.vocab
-        assert scenario.quips
-        assert scenario.finals
-        assert scenario.commands
+        assert scenario.keywords
