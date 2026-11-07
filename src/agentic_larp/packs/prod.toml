@@ -1,7 +1,7 @@
 [pack]
 key = "prod"
 task = "ship to prod on a friday"
-keywords = ["prod", "deploy", "ship", "release", "friday", "production", "server", "api"]
+keywords = ["prod", "deploy", "ship", "release", "friday", "production", "server", "api", "shipping", "shipped", "deploying", "deployed", "deploys", "releasing", "released", "releases", "servers", "apis", "fridays"]
 app = "deploy"
 
 [areas]

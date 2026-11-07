@@ -30,7 +30,7 @@ from agentic_larp._theater import (
     ShowSettings,
     Theater,
 )
-from agentic_larp.apps import DESCRIPTIONS, App, AppContext, app_registry
+from agentic_larp.apps import DESCRIPTIONS, App, AppContext, Outcome, app_registry
 
 _NON_INTERACTIVE_AUTO = 6.0
 _MAX_AGENTS = 12
@@ -134,6 +134,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--play", metavar="APP", help="skip the agents and launch an app"
     )
     parser.add_argument(
+        "--outcome",
+        choices=[outcome.value for outcome in Outcome],
+        help="how the app ends: success (default) or fail (a meltdown)",
+    )
+    parser.add_argument(
+        "--fail",
+        action="store_true",
+        help="shortcut for --outcome fail: the app breaks, then melts down",
+    )
+    parser.add_argument(
         "--auto",
         type=float,
         metavar="SECS",
@@ -191,7 +201,13 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         The process exit code.
     """
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.fail and args.outcome == Outcome.SUCCESS:
+        parser.error("--fail conflicts with --outcome success")
+    args.outcome = (
+        Outcome.FAIL if args.fail else Outcome(args.outcome or Outcome.SUCCESS)
+    )
     console = Console()
     apps = app_registry()
     try:
@@ -209,7 +225,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.play:
             task = " ".join(args.task) or "the thing"
             return _launch(
-                args.play, apps, AppContext(console=console, task=task, auto=auto)
+                args.play,
+                apps,
+                AppContext(console=console, task=task, auto=auto, outcome=args.outcome),
             )
         return _run_show(args, console, apps, auto, packs)
     except KeyboardInterrupt:
@@ -284,7 +302,11 @@ def _play_show(
         return subprocess.call(args.then, shell=True)  # noqa: S602 - the user's own command; running it is the feature
     if app == "none":
         return 0
-    return _launch(app, apps, AppContext(console=console, task=sim.task, auto=auto))
+    return _launch(
+        app,
+        apps,
+        AppContext(console=console, task=sim.task, auto=auto, outcome=args.outcome),
+    )
 
 
 def _print_unwrapped(console: Console, markup: str) -> None:

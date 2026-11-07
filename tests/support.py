@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from rich.console import Console
 
 MIN_SLEEP = 0.001
+CLOCK_LIMIT = 600.0  # simulated seconds; turns a hung loop into a failure
 
 
 @dataclass
@@ -17,6 +18,9 @@ class FakeClock:
 
     def sleep(self, seconds: float) -> None:
         self.now += max(seconds, MIN_SLEEP)
+        if self.now > CLOCK_LIMIT:
+            message = f"fake clock passed {CLOCK_LIMIT:.0f}s: a loop never ended"
+            raise RuntimeError(message)
 
 
 @dataclass

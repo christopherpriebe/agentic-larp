@@ -1,7 +1,7 @@
 [pack]
 key = "hacker"
 task = "hack the mainframe"
-keywords = ["hack", "mainframe", "breach", "cyber", "pentest", "exploit", "firewall"]
+keywords = ["hack", "mainframe", "breach", "cyber", "pentest", "exploit", "firewall", "hacking", "hacker", "hackers", "hacked", "hacks", "breached", "cyberattack", "exploits", "firewalls"]
 app = "hacker"
 
 [areas]

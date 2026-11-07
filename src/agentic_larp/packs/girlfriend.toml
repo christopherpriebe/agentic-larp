@@ -1,7 +1,7 @@
 [pack]
 key = "girlfriend"
 task = "build me a girlfriend"
-keywords = ["girlfriend", "boyfriend", "partner", "date", "wife", "husband", "love", "single"]
+keywords = ["girlfriend", "boyfriend", "partner", "date", "wife", "husband", "love", "single", "girlfriends", "boyfriends", "dating", "partners", "wives", "husbands", "loves", "dates"]
 app = "call"
 
 [areas]

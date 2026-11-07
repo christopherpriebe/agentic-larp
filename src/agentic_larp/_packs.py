@@ -141,6 +141,8 @@ def _parse_scenario(text: str, label: str, base: Grammar) -> Scenario:
             raise
         raise _fail(label, str(err)) from err
     keywords = _text_list(label, "[pack] keywords", pack.get("keywords", []))
+    if not all(keyword.strip() for keyword in keywords):
+        raise _fail(label, "[pack] keywords has an empty keyword")
     scenario = Scenario(
         key=pack["key"],
         task=pack["task"],

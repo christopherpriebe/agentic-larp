@@ -302,3 +302,53 @@ def test_no_interns_means_no_delegation(tmp_path: Path) -> None:
     }
     assert "Task" not in tools
     assert {"Edit", "Bash"} <= tools
+
+
+def test_keywords_match_whole_words_only(tmp_path: Path) -> None:
+    ai = load_scenario(write_pack(tmp_path, "ai"))
+    packs = {"ai": ai}
+    assert pick_scenario("fix the mainframe", scenarios=packs).key == "generic"
+    assert pick_scenario("build an AI wrapper", scenarios=packs).key == "ai"
+    assert pick_scenario("ai-powered toaster", scenarios=packs).key == "ai"
+
+
+def keyword_pack(tmp_path: Path, keyword: str) -> Path:
+    path = tmp_path / "kw.toml"
+    path.write_text(
+        f'[pack]\nkey = "kw"\ntask = "t"\nkeywords = ["{keyword}"]\n[areas]\nx = ["x.py"]\n',
+        encoding="utf-8",
+    )
+    return path
+
+
+@pytest.mark.parametrize(
+    ("keyword", "task", "expected"),
+    [
+        ("c++", "rewrite it in c++", "kw"),
+        ("c++", "rewrite it in c", "generic"),
+        ("node.js", "a node.js app", "kw"),
+        ("node.js", "a nodexjs app", "generic"),
+    ],
+)
+def test_keywords_with_regex_characters_match_literally(
+    tmp_path: Path, keyword: str, task: str, expected: str
+) -> None:
+    packs = {"kw": load_scenario(keyword_pack(tmp_path, keyword))}
+    assert pick_scenario(task, scenarios=packs).key == expected
+
+
+def test_empty_keywords_are_rejected(tmp_path: Path) -> None:
+    with pytest.raises(GrammarError, match="empty keyword"):
+        load_scenario(keyword_pack(tmp_path, " "))
+
+
+@pytest.mark.parametrize(
+    ("task", "key"),
+    [
+        ("hacking the gibson", "hacker"),
+        ("shipping on a friday", "prod"),
+        ("two startups walk into a bar", "startup"),
+    ],
+)
+def test_builtin_keywords_cover_common_inflections(task: str, key: str) -> None:
+    assert pick_scenario(task).key == key
