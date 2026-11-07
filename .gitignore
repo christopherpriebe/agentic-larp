@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Tools
+.nox/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code personal overrides and run state
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/usage.json
+.claude/usage-*.tmp
+.claude/usage-notice
+.claude/.stop-gate-last
+.claude/runs/

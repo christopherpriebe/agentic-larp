@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier; do not edit manually.
+_commit: 09281d0
+_src_path: tpl/python-package-template
+author_email: chrisp9090@gmail.com
+author_name: Christopher Priebe
+copyright_year: '2026'
+description: 'Cosplay as a 10x AI engineer: a terminal UI where a swarm of fake agents
+    builds your app, then ships it.'
+github_owner: christopherpriebe
+license: MIT
+package_name: agentic_larp
+project_name: agentic-larp
+project_slug: agentic-larp
+python_min: '3.11'
+use_rust: false

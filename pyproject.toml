@@ -1,0 +1,222 @@
+[project]
+name = "agentic-larp"
+version = "0.1.0"
+description = "Cosplay as a 10x AI engineer: a terminal UI where a swarm of fake agents builds your app, then ships it."
+readme = "README.md"
+authors = [{ name = "Christopher Priebe", email = "chrisp9090@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+keywords = ["tui", "terminal", "joke", "agents", "larp", "rich"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Topic :: Games/Entertainment",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Typing :: Typed",
+]
+dependencies = [
+    # Layout, live redraws, and styled text for the whole TUI.
+    "rich>=13.7",
+]
+
+[project.scripts]
+larp = "agentic_larp:main"
+agentic-larp = "agentic_larp:main"
+
+[project.urls]
+Repository = "https://github.com/christopherpriebe/agentic-larp"
+Issues = "https://github.com/christopherpriebe/agentic-larp/issues"
+
+[dependency-groups]
+dev = [
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+    { include-group = "test" },
+    "pre-commit>=4.7",
+]
+lint = ["ruff>=0.17.1"]
+typecheck = [
+    "ty>=0.0.90",
+    "nox>=2026.10.20",
+    { include-group = "test" },
+]
+test = [
+    "pytest>=9.1",
+    "pytest-cov>=7.1",
+    "pytest-xdist>=3.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "agentic_larp"
+
+[tool.uv]
+default-groups = ["dev"]
+
+# ------------------------------------------------------------------ ruff
+
+[tool.ruff]
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+# Preview is limited to the rules listed by code below (pydoclint).
+preview = true
+explicit-preview-rules = true
+select = [
+    "A",     # flake8-builtins
+    "ANN",   # flake8-annotations
+    "ARG",   # flake8-unused-arguments
+    "ASYNC", # flake8-async
+    "B",     # flake8-bugbear
+    "BLE",   # flake8-blind-except
+    "C4",    # flake8-comprehensions
+    "D",     # pydocstyle
+    "DOC201", # pydoclint: return not documented
+    "DOC202", # pydoclint: return documented but function returns nothing
+    "DOC402", # pydoclint: yield not documented
+    "DOC403", # pydoclint: yield documented but function does not yield
+    "DOC501", # pydoclint: raised exception not documented
+    "DOC502", # pydoclint: documented exception is not raised
+    "DTZ",   # flake8-datetimez
+    "E",     # pycodestyle errors
+    "EM",    # flake8-errmsg
+    "ERA",   # eradicate (commented-out code)
+    "F",     # pyflakes
+    "FBT",   # flake8-boolean-trap
+    "FLY",   # flynt
+    "FURB",  # refurb
+    "G",     # flake8-logging-format
+    "I",     # isort
+    "ICN",   # flake8-import-conventions
+    "INP",   # flake8-no-pep420
+    "ISC",   # flake8-implicit-str-concat
+    "LOG",   # flake8-logging
+    "N",     # pep8-naming
+    "PERF",  # perflint
+    "PGH",   # pygrep-hooks
+    "PIE",   # flake8-pie
+    "PL",    # pylint
+    "PT",    # flake8-pytest-style
+    "PTH",   # flake8-use-pathlib
+    "PYI",   # flake8-pyi
+    "RET",   # flake8-return
+    "RSE",   # flake8-raise
+    "RUF",   # ruff-specific
+    "S",     # flake8-bandit
+    "SIM",   # flake8-simplify
+    "SLF",   # flake8-self
+    "SLOT",  # flake8-slots
+    "T10",   # flake8-debugger
+    "T20",   # flake8-print
+    "TID",   # flake8-tidy-imports
+    "TRY",   # tryceratops
+    "UP",    # pyupgrade
+    "W",     # pycodestyle warnings
+    "YTT",   # flake8-2020
+]
+ignore = [
+    "D105",    # no docstrings on magic methods
+    "D107",    # no docstrings on __init__
+    "E501",    # line length is the formatter's job
+    "FBT003",  # boolean positional values in calls, e.g. dict.get(k, False)
+    "ISC001",  # conflicts with the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "D",       # test names document themselves
+    "DOC",
+    "INP001",  # tests are not a package (importlib import mode)
+    "PLR2004", # literal expected values are fine in tests
+    "S101",    # pytest uses assert
+    "S311",    # seeded random.Random makes runs reproducible
+]
+"src/**" = [
+    "S311",    # randomness here is cosmetic (fake agents), never security
+    "RUF001",  # TUI glyphs (❯ × ✓ ⎿) are intentional, not confusables
+]
+"noxfile.py" = ["INP001"]
+".claude/hooks/*.py" = [
+    "INP001",  # standalone hook scripts
+    "S603",    # subprocess with a fixed argv
+    "S607",    # tools resolved from PATH on purpose
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.isort]
+known-first-party = ["agentic_larp"]
+
+# -------------------------------------------------------------------- ty
+
+[tool.ty.src]
+include = ["src", "tests", "noxfile.py", ".claude/hooks"]
+
+[tool.ty.environment]
+extra-paths = ["tests"]
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.analysis]
+# Only `# ty: ignore[rule]` suppresses diagnostics.
+respect-type-ignore-comments = false
+
+[tool.ty.terminal]
+error-on-warning = true
+
+# ---------------------------------------------------------------- pytest
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["tests"]
+strict = true
+addopts = [
+    "-ra",
+    "--import-mode=importlib",
+    "--numprocesses=auto",
+    "--dist=worksteal",
+]
+filterwarnings = ["error"]
+
+# -------------------------------------------------------------- coverage
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["agentic_larp"]
+
+[tool.coverage.paths]
+source = ["src/agentic_larp", "**/site-packages/agentic_larp"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@overload",
+    "raise NotImplementedError",
+    'if __name__ == "__main__":',
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
