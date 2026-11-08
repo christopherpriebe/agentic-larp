@@ -31,6 +31,8 @@ API = {
         "Converged",
         "ShipStarted",
         "Report",
+        "QuestionAsked",
+        "QuestionAnswered",
         "EventBus",
     },
     "agentic_larp.stages": {
@@ -62,6 +64,7 @@ API = {
         "SwarmWidget",
         "FooterWidget",
         "AgentPanel",
+        "QuestionWidget",
         "widget_registry",
         "render_entry",
         "SPOTLIGHT_HOLD",
@@ -124,6 +127,7 @@ API = {
         "capture_frame",
     },
     "agentic_larp.plugins": {"load_registry"},
+    "agentic_larp.questions": {"Option", "Question"},
 }
 
 

@@ -25,10 +25,14 @@ DT = 0.05
 
 
 def make_sim(
-    *, length: float = 10.0, mode: RunMode = RunMode.CONVERGE, agents: int = 4
+    *,
+    length: float = 10.0,
+    mode: RunMode = RunMode.CONVERGE,
+    agents: int = 4,
+    key: str = "prod",
 ) -> Sim:
     settings = SwarmSettings(agents=agents, interns=0, length=length, mode=mode)
-    return Sim([pick_scenario(None, "prod")], settings, random.Random(5))
+    return Sim([pick_scenario(None, key)], settings, random.Random(5))
 
 
 def run(sim: Sim, seconds: float) -> None:
@@ -227,7 +231,7 @@ def test_report_publishes_and_is_kept() -> None:
 
 
 def test_stage_messages_arrive_as_reports(console: Console, clock: FakeClock) -> None:
-    sim = make_sim(length=5.0)
+    sim = make_sim(key="startup", length=5.0)
     reports: list[Report] = []
     sim.events.subscribe(Report, reports.append)
     burst = [(3.0, key) for key in [*"hi there", "enter"]]
@@ -244,7 +248,7 @@ def test_stage_messages_arrive_as_reports(console: Console, clock: FakeClock) ->
 def test_ship_started_fires_when_a_converged_run_ships(
     console: Console, clock: FakeClock
 ) -> None:
-    sim = make_sim(length=3.0)
+    sim = make_sim(key="startup", length=3.0)
     started: list[ShipStarted] = []
     sim.events.subscribe(ShipStarted, started.append)
     keys = ScriptedKeys(clock, [*((20.0, key) for key in "ship it"), (20.0, "enter")])

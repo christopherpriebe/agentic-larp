@@ -47,6 +47,7 @@ class Wall:
         mode: Which stage the wall is dressed for.
         mode_since: Simulation time the mode last changed.
         launch_lines: The launch sequence shown while launching.
+        question_cursor: The highlighted option of the open question.
     """
 
     def __init__(
@@ -70,6 +71,7 @@ class Wall:
         self.mode: Mode = "running"
         self.mode_since = 0.0
         self.launch_lines: list[tuple[str, str]] = []
+        self.question_cursor = 0
         factories = builtin_widgets()
         for region, factory in (widgets or {}).items():
             if region not in REGIONS:
@@ -78,6 +80,7 @@ class Wall:
             factories[region] = factory
         self._header = self._build_region(factories, "header")
         self._swarm = self._build_region(factories, "swarm")
+        self._question = self._build_region(factories, "question")
         self._footer = self._build_region(factories, "footer")
         panel = factories["panel"](self)
         if not isinstance(panel, PanelWidget):
@@ -251,6 +254,9 @@ class Wall:
         )
         left = height - header_rows - footer_rows
         swarm_rows = _clamp(swarm.height(width, left), left)
+        question_rows = _clamp(
+            self._question.height(width, left - swarm_rows), left - swarm_rows
+        )
 
         layout = Layout()
         parts = []
@@ -259,6 +265,8 @@ class Wall:
         parts.append(Layout(name="body"))
         if swarm_rows:
             parts.append(Layout(swarm.render(width), size=swarm_rows))
+        if question_rows:
+            parts.append(Layout(self._question.render(width), size=question_rows))
         if footer_rows:
             parts.append(Layout(footer.render(width), size=footer_rows))
         layout.split_column(*parts)

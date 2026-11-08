@@ -264,7 +264,8 @@ def test_panels_show_todo_progress(console: Console, clock: FakeClock) -> None:
 def test_a_converged_run_skips_wrap_and_waits_for_one_ship_it(
     console: Console, clock: FakeClock
 ) -> None:
-    sim = make_sim(agents=4, length=10.0)
+    settings = SwarmSettings(agents=4, interns=0, length=10.0)
+    sim = Sim([pick_scenario(None, "startup")], settings, random.Random(5))
     keys = ScriptedKeys(clock, [*((40.0, key) for key in "ship it"), (40.0, "enter")])
     session = make_session(console, sim, keys=keys)
     assert run_flow(session) == 0
@@ -281,7 +282,7 @@ def test_cli_length_makes_the_run_converge_early(
 ) -> None:
     # Non-interactive runs auto-ship 6 s into the work. A 1 s length converges first
     # and ships about 9 s in; the default length would still be wrapping up then.
-    args = ["-s", "prod", "--app", "none", "-i", "0", "--seed", "1"]
+    args = ["-s", "startup", "--app", "none", "-i", "0", "--seed", "1"]
     assert main([*args, "--length", "1"]) == 0
     assert "✓ shipped" in capsys.readouterr().out
     assert clock.now < 11.0

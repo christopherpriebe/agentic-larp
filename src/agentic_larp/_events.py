@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from agentic_larp._log import LogLine
+    from agentic_larp._questions import Option, Question
     from agentic_larp._sim import Agent, Todo
 
 E = TypeVar("E", bound="Event")
@@ -103,6 +104,34 @@ class Report(Event):
 
     who: str
     text: str
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionAsked(Event):
+    """An agent paused to ask a question.
+
+    Attributes:
+        agent: Who asks.
+        question: What they ask.
+    """
+
+    agent: Agent
+    question: Question
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionAnswered(Event):
+    """A question was answered and its agent went back to work.
+
+    Attributes:
+        agent: Who asked.
+        question: What they asked.
+        option: The answer.
+    """
+
+    agent: Agent
+    question: Question
+    option: Option
 
 
 class EventBus:

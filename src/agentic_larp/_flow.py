@@ -80,6 +80,8 @@ class Session:
         grid: Fixed feed grid with spotlight rotation, or ``None``.
         pace: Fast-forward for tests and demos.
         flags: Free-form state for plugin stages.
+        pinned: Flag keys given on the command line; questions that would
+            change one are never asked.
         exit_code: The process exit code the run ends with.
         wall: The agent wall; the first wall stage creates it and the later
             ones share it.
@@ -103,6 +105,7 @@ class Session:
     grid: Grid | None = None
     pace: float = 1.0
     flags: dict[str, str] = field(default_factory=dict)
+    pinned: frozenset[str] = frozenset()
     exit_code: int = 0
     wall: Wall | None = None
     apps: Mapping[str, App] | None = None

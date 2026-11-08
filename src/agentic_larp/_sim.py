@@ -14,6 +14,8 @@ from agentic_larp._events import (
     Converged,
     EventBus,
     LineShown,
+    QuestionAnswered,
+    QuestionAsked,
     Report,
     ScopeCreep,
     ShipStarted,
@@ -23,6 +25,7 @@ from agentic_larp._grammar import Grammar, parse_activity
 from agentic_larp._log import LogLine
 from agentic_larp._packs import Scenario
 from agentic_larp._policies import ChoicePolicy, RandomPolicy
+from agentic_larp._questions import Option, Question
 
 SPINNER_VERBS = (
     "Frothing",
@@ -236,7 +239,7 @@ class Sim:
         self._intern_policies: dict[str, ChoicePolicy] = {}
         self.activity = settings.activity
         self.mode = settings.mode
-        self.length = settings.length
+        self._length = settings.length
         self.lead_model = settings.lead_model
         self.intern_model = settings.intern_model
         self.rng = rng or random.Random()
@@ -250,6 +253,7 @@ class Sim:
         self.reports: deque[tuple[str, str]] = deque(maxlen=_MAX_REPORTS)
         self._is_ship_started = self._is_rushed = self._is_converged_published = False
         self.pending_user: list[str] = []
+        self._question: tuple[Agent, Question] | None = None
         for _ in range(settings.agents):
             self.spawn_agent(quiet=True)
         for index in range(settings.interns):
@@ -279,6 +283,16 @@ class Sim:
     def run_time(self) -> float:
         """Return the real seconds the orchestration has been running."""
         return self._run_time
+
+    @property
+    def length(self) -> float:
+        """Return the seconds the swarm takes to converge at activity 1."""
+        return self._length
+
+    @property
+    def open_question(self) -> tuple[Agent, Question] | None:
+        """Return the agent waiting for an answer and its question, if any."""
+        return self._question
 
     @property
     def _intern_callers(self) -> float:
@@ -408,13 +422,80 @@ class Sim:
             self.events.publish(ShipStarted())
 
     def ship(self) -> None:
-        """Have every agent wrap up over the next few seconds."""
+        """Have every agent wrap up over the next few seconds.
+
+        An open question is answered with its recommended option first, as
+        if you had pressed esc, so its agent can wrap up too.
+        """
+        if self._question is not None:
+            self.answer(self._question[1].recommended)
         self.start_ship()
         self._is_rushed = True
         self.report(self.orchestrator, "wrapping up. tell everyone to commit.")
         for agent in self.agents:
             if not agent.is_done and agent.finish_at is None:
                 agent.finish_at = self.now + self.rng.uniform(0.6, 4.5)
+
+    # ---- questions -----------------------------------------------------------
+    def ask(self, agent: Agent, question: Question) -> None:
+        """Pause an agent until its question is answered.
+
+        Args:
+            agent: Who asks; it does nothing until :meth:`answer`.
+            question: What it asks.
+
+        Raises:
+            LarpError: If a question is already open or shipping has started.
+        """
+        if self._is_ship_started:
+            message = "shipping has started; no more questions"
+            raise LarpError(message)
+        if self._question is not None:
+            message = f"a question is already open ({self._question[1].key!r})"
+            raise LarpError(message)
+        self._question = (agent, question)
+        self.events.publish(QuestionAsked(agent, question))
+
+    def answer(self, index: int) -> Option:
+        """Answer the open question and let its agent get back to work.
+
+        The option's todos and spawns happen here; its flags are the
+        caller's to apply.
+
+        Args:
+            index: Which option, from 0.
+
+        Returns:
+            The chosen option.
+
+        Raises:
+            LarpError: If no question is open or the index is out of range.
+        """
+        if self._question is None:
+            message = "no question is open"
+            raise LarpError(message)
+        agent, question = self._question
+        if not 0 <= index < len(question.options):
+            message = f"no option {index}; the question has {len(question.options)}"
+            raise LarpError(message)
+        option = question.options[index]
+        if option.todos:
+            rng = self.rng
+            agent.todos.extend(
+                self._draft_todos(
+                    agent,
+                    [
+                        agent.todo_average
+                        * rng.uniform(1 - _CREEP_SPREAD, 1 + _CREEP_SPREAD)
+                        for _ in range(option.todos)
+                    ],
+                )
+            )
+        for _ in range(option.spawn):
+            self.spawn_agent()
+        self._question = None
+        self.events.publish(QuestionAnswered(agent, question, option))
+        return option
 
     # ---- the tick ------------------------------------------------------------
     def tick(self, dt: float) -> None:
@@ -430,8 +511,9 @@ class Sim:
         self._run_time += dt
         boost = (1 + self.energy) * self.activity
         self.energy = max(0.0, self.energy - dt * (2 + self.energy * 0.6))
+        asker = None if self._question is None else self._question[0]
         for agent in self.agents:
-            if not agent.is_done:
+            if not agent.is_done and agent is not asker:
                 self._tick_agent(agent, dt, boost)
         if self.running == 0:
             self._stop_interns()
@@ -510,7 +592,7 @@ class Sim:
     def _write_todos(self, agent: Agent) -> None:
         """Give an agent a todo list that adds up to its deadline."""
         rng = self.rng
-        deadline = self.length * rng.uniform(1 - _SPEED_SPREAD, 1 + _SPEED_SPREAD)
+        deadline = self._length * rng.uniform(1 - _SPEED_SPREAD, 1 + _SPEED_SPREAD)
         shares = [
             rng.uniform(*_TODO_SHARE)
             for _ in range(rng.randint(_MIN_TODOS, _MAX_TODOS))

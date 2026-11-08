@@ -380,6 +380,7 @@ def _run_show(
             auto=auto,
             grid=grid,
             flags=dict(args.flags),
+            pinned=frozenset(dict(args.flags)),
             apps=plugins.apps,
             widgets=plugins.widgets,
             on_error=plugins.warn,
