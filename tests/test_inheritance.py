@@ -341,3 +341,89 @@ def test_toolchain_numbers_are_not_all_the_same_placeholder(key: str) -> None:
     assert "-j777" not in text
     assert "-777" not in text
     assert "777 files changed" not in text
+
+
+GOOD = '[pack]\nkey = "good"\ntask = "t"\n[areas]\nx = ["x.py"]\n'
+
+
+def test_a_pack_with_a_key_but_a_broken_body_is_reported_and_the_rest_load(
+    tmp_path: Path,
+) -> None:
+    write(
+        tmp_path,
+        "bad",
+        'rules = 1\n[pack]\nkey = "bad"\ntask = "t"\n[areas]\nx = ["x.py"]\n',
+    )
+    write(
+        tmp_path,
+        "child",
+        '[pack]\nkey = "child"\ntask = "t"\nextends = ["bad"]\n[areas]\nx = ["x.py"]\n',
+    )
+    write(tmp_path, "good", GOOD)
+    errors: list[GrammarError] = []
+    found = discover_scenarios([tmp_path], on_error=errors.append)
+    assert set(found) == {"good"}
+    messages = [str(error) for error in errors]
+    assert len(messages) == 2
+    assert any("bad.toml" in message for message in messages)
+    assert any("parent 'bad' failed to load" in message for message in messages)
+
+
+def test_a_broken_config_pack_with_a_key_only_warns(
+    capsys: pytest.CaptureFixture[str], config_home: Path
+) -> None:
+    write(
+        config_home,
+        "bad",
+        'rules = 1\n[pack]\nkey = "bad"\ntask = "t"\n[areas]\nx = ["x.py"]\n',
+    )
+    write(config_home, "good", GOOD)
+    assert main(["--list"]) == 0
+    text = capsys.readouterr().out
+    assert "warning" in text
+    assert "bad.toml" in text
+    assert "good" in text
+
+
+def test_an_inheritance_cycle_with_on_error_skips_only_the_cycle(
+    tmp_path: Path,
+) -> None:
+    write(
+        tmp_path,
+        "a",
+        '[pack]\nkey = "a"\ntask = "t"\nextends = ["b"]\n[areas]\nx = ["x.py"]\n',
+    )
+    write(
+        tmp_path,
+        "b",
+        '[pack]\nkey = "b"\ntask = "t"\nextends = ["a"]\n[areas]\nx = ["x.py"]\n',
+    )
+    write(tmp_path, "good", GOOD)
+    errors: list[GrammarError] = []
+    found = discover_scenarios([tmp_path], on_error=errors.append)
+    assert set(found) == {"good"}
+    assert len(errors) == 1
+    assert "inheritance cycle" in str(errors[0])
+    assert "a.toml" in str(errors[0])
+    assert "b.toml" in str(errors[0])
+
+
+def test_an_unreadable_file_does_not_hide_a_good_pack_named_like_it(
+    tmp_path: Path,
+) -> None:
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    write(first, "foo", "[pack")
+    write(second, "foo", GOOD.replace('"good"', '"foo"'))
+    write(
+        second,
+        "bar",
+        '[pack]\nkey = "bar"\ntask = "t"\nextends = ["foo"]\n[areas]\nx = ["x.py"]\n',
+    )
+    errors: list[GrammarError] = []
+    found = discover_scenarios([first, second], on_error=errors.append)
+    assert "foo" in found
+    assert "bar" in found
+    assert len(errors) == 1
+    assert "foo.toml" in str(errors[0])

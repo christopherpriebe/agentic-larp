@@ -1,4 +1,4 @@
-"""The built-in stages: plan, work, wrap up, get ready, ship, launch, receipt."""
+"""The built-in stages: plan, work, wrap up, get ready, ship, launch, receipt, and abandon."""
 
 import math
 import subprocess
@@ -41,7 +41,8 @@ def describe_unknown_app(name: str, apps: Iterable[str]) -> str:
     Returns:
         Console markup.
     """
-    return f"[red]no app called {escape(repr(name))}.[/] try: {', '.join(apps)}"
+    names = ", ".join(escape(app) for app in apps)
+    return f"[red]no app called {escape(repr(name))}.[/] try: {names}"
 
 
 class PlanStage(ScreenStage):
@@ -143,7 +144,10 @@ class WorkStage(ScreenStage):
 
     @override
     def start(self) -> None:
-        """Forget which questions were asked."""
+        """Forget which questions were asked and listen for answers.
+
+        Also resets the prompt stash and the key-grace timers.
+        """
         self._asked: set[str] = set()
         self._opened_at = 0.0
         self._answered_at = -math.inf
@@ -183,6 +187,7 @@ class WorkStage(ScreenStage):
         sim = self.wall.sim
         asked = sim.open_question
         if asked is None:
+            # The esc that answered a question must not also dismiss the agents.
             if key == "esc" and sim.now - self._answered_at < _KEY_GRACE:
                 return not self.is_done
             return super().on_key(key)

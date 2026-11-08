@@ -625,3 +625,10 @@ def test_malformed_questions_explain_themselves(
     text = '[pack]\nkey = "broken"\ntask = "t"\n[areas]\nx = ["x.py"]\n' + body
     with pytest.raises(GrammarError, match=message):
         load_scenario(write(tmp_path, "broken", text))
+
+
+def test_question_options_are_kept_as_a_tuple() -> None:
+    options = [YES, NO]
+    question = Question("friday", "Ship?", options)  # ty: ignore[invalid-argument-type] - a list is what a careless caller passes
+    options.append(NO)
+    assert question.options == (YES, NO)

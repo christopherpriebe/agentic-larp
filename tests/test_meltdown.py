@@ -586,3 +586,22 @@ def test_matchmaker_never_borrows_the_episode_reveal(
     assert "rebel" not in text
     assert "99.8" not in text
     assert clock.now > 0
+
+
+def test_keys_other_than_escape_do_not_cut_the_meltdown_short(
+    console: Console,
+    clock: FakeClock,
+    make_keys: Callable[..., ScriptedKeys],
+) -> None:
+    def run(keys: ScriptedKeys | None) -> float:
+        start = clock.now
+        context = AppContext(
+            console=console, task="t", fps=10, keys=keys, rng=random.Random(3)
+        )
+        run_meltdown(context, Text("frame"), Meltdown(errors=("E1",)))
+        return clock.now - start
+
+    untouched = run(make_keys())
+    mashed = run(make_keys((0.5, "a"), (0.6, "enter"), (0.7, "space"), (0.8, "q")))
+    assert untouched > 3.0
+    assert mashed == pytest.approx(untouched, abs=0.2)  # within two frames at fps 10

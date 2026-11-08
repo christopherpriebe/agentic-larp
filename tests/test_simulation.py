@@ -224,3 +224,24 @@ def test_tokens_still_climb_at_a_crawl() -> None:
     for _ in range(2000):
         sim.tick(0.005)
     assert sim.total_tokens - tokens >= 5_000
+
+
+def test_sim_needs_at_least_one_pack() -> None:
+    with pytest.raises(LarpError, match="at least one pack"):
+        Sim([], SwarmSettings(), random.Random(1))
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"interns": -1}, "interns"),
+        ({"agents": 0}, "at least one agent"),
+        ({"activity": 0.0}, "activity"),
+        ({"length": float("nan")}, "length"),
+    ],
+)
+def test_swarm_settings_reject_bad_values_when_built(
+    changes: dict[str, float], message: str
+) -> None:
+    with pytest.raises(LarpError, match=message):
+        SwarmSettings(**changes)  # ty: ignore[invalid-argument-type] - parametrized kwargs of mixed types

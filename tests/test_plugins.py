@@ -19,9 +19,16 @@ from agentic_larp.apps import (
 )
 from agentic_larp.packs import pick_scenario
 from agentic_larp.plugins import load_registry
+from agentic_larp.policies import POLICY_ENTRY_POINT_GROUP, policy_registry
 from agentic_larp.sim import Sim, SwarmSettings
-from agentic_larp.stages import STAGE_ENTRY_POINT_GROUP, Session, run_flow
-from agentic_larp.widgets import WIDGET_ENTRY_POINT_GROUP
+from agentic_larp.stages import (
+    END,
+    STAGE_ENTRY_POINT_GROUP,
+    Session,
+    run_flow,
+    stage_registry,
+)
+from agentic_larp.widgets import WIDGET_ENTRY_POINT_GROUP, widget_registry
 from support import FakeClock
 
 GROUP = "agentic_larp.testing"
@@ -352,3 +359,169 @@ def test_widget_warnings_name_the_plugin_once(
         line for line in capsys.readouterr().out.splitlines() if "warning" in line
     )
     assert warning.count("sidebar") == 1
+
+
+def loud_app(context: AppContext) -> None:
+    context.console.print("MYAPP RAN")
+
+
+def test_plugin_warnings_name_the_group_and_the_error_type(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(monkeypatch, {WIDGET_ENTRY_POINT_GROUP: [BrokenEntryPoint("busted")]})
+    assert main(["--list"]) == 0
+    warning = next(
+        line for line in capsys.readouterr().out.splitlines() if "warning" in line
+    )
+    assert "busted" in warning
+    assert WIDGET_ENTRY_POINT_GROUP in warning
+    assert "ImportError" in warning
+
+
+def test_a_policy_plugin_that_is_not_callable_warns_and_is_skipped(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(monkeypatch, {POLICY_ENTRY_POINT_GROUP: [FakeEntryPoint("odd", 42)]})
+    errors: list[str] = []
+    assert "odd" not in policy_registry(on_error=lambda name, _err: errors.append(name))
+    assert errors == ["odd"]
+    assert main(["--list"]) == 0
+    text = capsys.readouterr().out
+    assert "warning: odd" in text
+    policies = text.split("\npolicies")[1].split("\napps")[0]
+    assert "odd" not in policies
+
+
+def test_a_policy_plugin_whose_constructor_raises_is_a_usage_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def explode() -> object:
+        message = "no policy for you"
+        raise RuntimeError(message)
+
+    fake_plugins(
+        monkeypatch, {POLICY_ENTRY_POINT_GROUP: [FakeEntryPoint("boom", explode)]}
+    )
+    with pytest.raises(SystemExit) as caught:
+        main(["--policy", "boom", "-s", "prod", "--auto", "1"])
+    assert caught.value.code == 2
+    error = capsys.readouterr().err
+    assert "'boom'" in error
+    assert "RuntimeError: no policy for you" in error
+
+
+@pytest.mark.parametrize("spelling", ["MyApp", "myapp", "MYAPP"])
+def test_an_app_plugin_is_reached_in_any_case(
+    spelling: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    fake_plugins(
+        monkeypatch, {APP_ENTRY_POINT_GROUP: [FakeEntryPoint("MyApp", loud_app)]}
+    )
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "-i", "0", "--app", spelling]
+    assert main(args) == 0
+    assert "MYAPP RAN" in capsys.readouterr().out
+    assert main(["--play", spelling]) == 0
+    assert "MYAPP RAN" in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_a_stage_plugin_named_end_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_plugins(
+        monkeypatch, {STAGE_ENTRY_POINT_GROUP: [FakeEntryPoint(END, lambda: None)]}
+    )
+    errors: list[tuple[str, Exception]] = []
+    registry = stage_registry(on_error=lambda name, err: errors.append((name, err)))
+    assert END not in registry
+    assert [name for name, _ in errors] == [END]
+    assert "reserved" in str(errors[0][1])
+
+
+@pytest.mark.parametrize(
+    ("group", "name", "message"),
+    [
+        (WIDGET_ENTRY_POINT_GROUP, "header", "not a widget factory"),
+        (APP_ENTRY_POINT_GROUP, "thing", "neither an App nor a function"),
+        (STAGE_ENTRY_POINT_GROUP, "thing", "not a stage factory"),
+    ],
+)
+def test_a_plugin_that_is_not_callable_is_rejected(
+    group: str, name: str, message: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_plugins(monkeypatch, {group: [FakeEntryPoint(name, 42)]})
+    registry_for = {
+        WIDGET_ENTRY_POINT_GROUP: widget_registry,
+        APP_ENTRY_POINT_GROUP: app_registry,
+        STAGE_ENTRY_POINT_GROUP: stage_registry,
+    }[group]
+    errors: list[tuple[str, Exception]] = []
+    registry = registry_for(on_error=lambda n, err: errors.append((n, err)))
+    assert [n for n, _ in errors] == [name]
+    assert message in str(errors[0][1])
+    assert registry.get(name) != 42
+
+
+def test_a_widget_factory_of_the_wrong_shape_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    fake_plugins(
+        monkeypatch,
+        {WIDGET_ENTRY_POINT_GROUP: [FakeEntryPoint("header", lambda _wall: object())]},
+    )
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "--app", "none", "-i", "0"]
+    assert main(args) == 2
+    assert "the 'header' widget needs height() and render()" in capsys.readouterr().out
+    assert clock.now < 1.0
+
+
+def test_plugin_names_are_shown_literally_not_as_markup(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(
+        monkeypatch, {APP_ENTRY_POINT_GROUP: [FakeEntryPoint("[red]x[/]", loud_app)]}
+    )
+    assert main(["--list"]) == 0
+    assert "[red]x[/]" in capsys.readouterr().out
+    assert main(["--play", "nosuch"]) == 2
+    assert "[red]x[/]" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("name", ["", "   "])
+def test_an_app_needs_a_name(name: str) -> None:
+    with pytest.raises(LarpError, match="app needs a name"):
+        App(name, "d", loud_app)
+
+
+def test_a_plugin_named_none_cannot_take_over_app_none(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    fake_plugins(
+        monkeypatch, {APP_ENTRY_POINT_GROUP: [FakeEntryPoint("NONE", loud_app)]}
+    )
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "-i", "0", "--app", "none"]
+    assert main(args) == 0
+    assert "MYAPP RAN" not in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+def test_an_ambiguous_app_name_lists_the_matches(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(
+        monkeypatch, {APP_ENTRY_POINT_GROUP: [FakeEntryPoint("Hacker", loud_app)]}
+    )
+    assert main(["--play", "HACKER"]) == 2
+    text = capsys.readouterr().out
+    assert "ambiguous" in text
+    assert "'Hacker'" in text
+    assert "'hacker'" in text
+    assert main(["--play", "Hacker"]) == 0
+    assert "MYAPP RAN" in capsys.readouterr().out

@@ -190,7 +190,7 @@ to right: `#word.capitalize#` (`Red_flags`), `#word.camel#` (`RedFlags`),
 simulation and need no rule: `file`, `area`, `agent`, `intern`, `n`. A pack must
 end up with the rules `action`, `quip`, `final`, `intern_task`, and `todo`
 (one line of an agent's todo list, such as `Write tests for #file#`; it is
-required now, so a custom base grammar must define it too); the base
+required, so a custom base grammar must define it too); the base
 grammar supplies them and the machinery behind them (edits, shell runs that
 fail and recover, reads, writes, greps, web searches, delegation to interns),
 so a pack mostly provides vocabulary: `word`, `code`, `command`, `quip`,
@@ -236,9 +236,10 @@ the payoff app break), so later questions can branch with `when`. Children
 replace inherited questions by `key`, in the parent's position; new keys are
 appended. Questions are asked with `--forever` too. `at` is a fraction of
 `--length`; a value near 1 may never come before the swarm converges, and then
-the question is never asked. Keys are ignored for half a second after a
-question opens (so typing does not answer it), and `ship it` answers an open
-question with its recommendation. In demo mode (`--auto`) the recommendation
+the question is never asked. Keys are ignored for 0.4 seconds after a
+question opens (so typing does not answer it). While one is open, only `1` to
+`4`, the arrows, enter and esc do anything; calling `sim.ship()` from code
+answers it with its recommendation. In demo mode (`--auto`) the recommendation
 is taken after 2.5 seconds of sim time, and auto-ship waits until the question
 is answered. Flags pinned with `--flag` are never changed: a question whose
 options set a pinned flag is skipped, so `--flag ending=success -s prod

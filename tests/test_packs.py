@@ -425,3 +425,11 @@ def test_keywords_are_stored_stripped(tmp_path: Path) -> None:
 )
 def test_everyday_programming_words_do_not_trigger_grift_packs(task: str) -> None:
     assert pick_scenario(task).key == "generic"
+
+
+def test_a_scenarios_areas_and_area_rules_are_read_only() -> None:
+    scenario = SCENARIOS["prod"]
+    with pytest.raises(TypeError, match="does not support item assignment"):
+        scenario.areas["new"] = ("x.py",)  # ty: ignore[invalid-assignment] - proving the mapping is read-only
+    with pytest.raises(TypeError, match="does not support item assignment"):
+        scenario.area_rules["new"] = scenario.grammar  # ty: ignore[invalid-assignment] - proving the mapping is read-only

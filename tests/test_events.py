@@ -1,5 +1,6 @@
 import random
 from collections import deque
+from collections.abc import Callable
 
 import pytest
 from rich.console import Console
@@ -258,3 +259,20 @@ def test_ship_started_fires_when_a_converged_run_ships(
     assert run_flow(session) == 0
     assert sim.is_converged
     assert started == [ShipStarted()]
+
+
+def test_a_handler_unsubscribed_mid_publish_still_gets_that_event() -> None:
+    bus = EventBus()
+    received: list[str] = []
+    cancels: dict[str, Callable[[], None]] = {}
+
+    def first(_event: Converged) -> None:
+        received.append("first")
+        cancels["second"]()
+
+    bus.subscribe(Converged, first)
+    cancels["second"] = bus.subscribe(Converged, lambda _e: received.append("second"))
+    bus.publish(Converged())
+    assert received == ["first", "second"]
+    bus.publish(Converged())
+    assert received == ["first", "second", "first"]

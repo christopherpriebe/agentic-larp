@@ -2,7 +2,6 @@
 
 import random
 import re
-import sys
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, field
@@ -19,11 +18,6 @@ from agentic_larp._sim import Sim
 from agentic_larp._wall import Mode, Wall
 from agentic_larp._widgets import PanelWidget, Widget, widget_registry
 from agentic_larp.apps._base import App, AppContext, Screen, run_frames
-
-if sys.version_info >= (3, 12):
-    pass
-else:
-    pass
 
 FLOW: tuple[str, ...] = ("plan", "work", "wrap", "ready", "ship", "launch", "receipt")
 END = "end"
@@ -79,7 +73,8 @@ class Session:
         keys: Key source to read from; ``None`` reads the real keyboard.
         grid: Fixed feed grid with spotlight rotation, or ``None``.
         pace: Fast-forward for tests and demos.
-        flags: Free-form state for plugin stages.
+        flags: Session flags from ``--flag`` and question answers; ``ending``
+            picks the app's ending.
         pinned: Flag keys given on the command line; questions that would
             change one are never asked.
         exit_code: The process exit code the run ends with.
@@ -375,12 +370,17 @@ def stage_registry(
 
     Args:
         on_error: Called with the plugin name and the error for each plugin
-            that fails to load, which is then skipped. By default a failing
-            plugin raises ``LarpError`` naming the group and plugin.
+            that fails to load or is named :data:`END`, which is then skipped.
+            By default a failing plugin raises ``LarpError`` naming the group
+            and plugin.
 
     Returns:
         Stage name mapped to a factory that builds the stage. A plugin
         named :data:`END` is dropped after loading.
+
+    Raises:
+        LarpError: If a plugin is named :data:`END` and there is no
+            ``on_error``, or a plugin fails and there is no ``on_error``.
     """
     from agentic_larp import _stages  # noqa: PLC0415 - the stages import this module
 
@@ -397,7 +397,12 @@ def stage_registry(
     registry = load_registry(
         STAGE_ENTRY_POINT_GROUP, builtins, check=_check_stage, on_error=on_error
     )
-    registry.pop(END, None)
+    if END in registry and END not in builtins:
+        del registry[END]
+        message = f"{END!r} is a reserved stage name"
+        if on_error is None:
+            raise LarpError(message)
+        on_error(END, LarpError(message))
     return registry
 
 

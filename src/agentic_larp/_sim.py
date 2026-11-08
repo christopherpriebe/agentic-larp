@@ -121,6 +121,10 @@ class SwarmSettings:
         mode: Whether the agents finish their todos and stop, or keep finding
             more.
         length: Target seconds for the swarm to converge at activity 1.
+
+    Raises:
+        LarpError: If ``activity`` or ``length`` is not a finite number above
+            0, ``agents`` is below 1, or ``interns`` is below 0.
     """
 
     agents: int = 8
@@ -132,24 +136,40 @@ class SwarmSettings:
     mode: RunMode = RunMode.CONVERGE
     length: float = 20.0
 
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.activity) or self.activity <= 0:
+            message = "activity must be a finite number above 0"
+            raise LarpError(message)
+        if not math.isfinite(self.length) or self.length <= 0:
+            message = "length must be a finite number above 0"
+            raise LarpError(message)
+        if self.agents < 1:
+            message = "a swarm needs at least one agent"
+            raise LarpError(message)
+        if self.interns < 0:
+            message = f"interns must be at least 0, not {self.interns}"
+            raise LarpError(message)
+
 
 @dataclass(slots=True, eq=False)
 class Agent:
     """A lead agent with its own panel and log.
+
+    Plugins should treat its attributes as read-only.
 
     Attributes:
         name: Display name, such as ``maestro-3``.
         scenario_key: Key of the pack that supplies its activity.
         area: What it is "working" on, such as ``render``.
         files: Files it touches.
-        spawn_offset: Seconds of run time at which that it joined.
+        spawn_offset: Seconds of run time at which it joined.
         log: Lines already shown in its panel.
         queue: Lines waiting to be streamed into the log.
         tokens: Tokens it has pretended to use.
         calls: Tool calls it has pretended to make.
         verb: Its current spinner verb.
         is_done: Whether it has finished.
-        finish_at: Real time it wraps up after the first "ship it".
+        finish_at: Sim time (``Sim.now``) it wraps up after the first "ship it".
         frozen_elapsed: Run time it worked for, fixed once it finishes.
         last_active: Sim time a line last entered its log.
         todos: Its todo list.
@@ -186,6 +206,8 @@ class Agent:
 class Intern:
     """A tiny swarm agent shown as a two-line tile.
 
+    Plugins should treat its attributes as read-only.
+
     Attributes:
         name: Display name, such as ``intern-07``.
         task: What its tile says it is doing.
@@ -221,15 +243,6 @@ class Sim:
             message = "a simulation needs at least one pack"
             raise LarpError(message)
         settings = settings or SwarmSettings()
-        if not math.isfinite(settings.activity) or settings.activity <= 0:
-            message = "activity must be a finite number above 0"
-            raise LarpError(message)
-        if not math.isfinite(settings.length) or settings.length <= 0:
-            message = "length must be a finite number above 0"
-            raise LarpError(message)
-        if settings.agents < 1:
-            message = "a swarm needs at least one agent"
-            raise LarpError(message)
         self.scenarios = list(scenarios)
         self.task = task or self.scenarios[0].task
         self._by_key = {scenario.key: scenario for scenario in self.scenarios}
@@ -281,7 +294,7 @@ class Sim:
     # ---- totals --------------------------------------------------------------
     @property
     def run_time(self) -> float:
-        """Return the real seconds the orchestration has been running."""
+        """Return the seconds the header clock shows: a fake head start plus real time since the sim started."""
         return self._run_time
 
     @property
