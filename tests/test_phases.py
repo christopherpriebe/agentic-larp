@@ -96,3 +96,17 @@ def test_phased_runs_end_to_end(
 
 def test_swarm_settings_accept_phased() -> None:
     assert SwarmSettings(policy=PhasedPolicy).policy is PhasedPolicy
+
+
+def test_a_rule_with_only_anytime_alternatives_still_picks_one() -> None:
+    policy, rng = PhasedPolicy(), random.Random(0)
+    alternatives = (("#anytime# a", 1.0), ("#anytime# b", 1.0))
+    picks = {policy.choose("action", alternatives, rng) for _ in range(200)}
+    assert picks == {0, 1}
+
+
+def test_phases_the_rhythm_cannot_reach_are_still_picked() -> None:
+    policy, rng = PhasedPolicy(), random.Random(0)
+    alternatives = (("#debug# a", 1.0), ("#build# b", 1.0))
+    picks = {policy.choose("action", alternatives, rng) for _ in range(200)}
+    assert picks == {0, 1}

@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
+from types import MappingProxyType
 
 from agentic_larp._errors import GrammarError, LarpError
 from agentic_larp._grammar import (
@@ -61,14 +62,18 @@ class Scenario:
     key: str
     task: str
     keywords: tuple[str, ...]
-    areas: dict[str, tuple[str, ...]]
+    areas: Mapping[str, tuple[str, ...]]
     app: str
     grammar: Grammar
-    area_rules: dict[str, Grammar] = field(default_factory=dict)
+    area_rules: Mapping[str, Grammar] = field(default_factory=dict)
     abstract: bool = False
     parents: tuple[str, ...] = ()
     layer: Grammar = field(default_factory=lambda: Grammar({}))
     questions: tuple[Question, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "areas", MappingProxyType(dict(self.areas)))
+        object.__setattr__(self, "area_rules", MappingProxyType(dict(self.area_rules)))
 
     def grammar_for(self, area: str) -> Grammar:
         """Return the grammar an agent working on an area uses.
@@ -466,6 +471,7 @@ def discover_scenarios(
             pending[peeked[0]] = (file, peeked[1])
 
     failed: set[str] = set()
+    unreadable: set[str] = set()  # stems of files whose key is unknown
 
     def report(error: GrammarError) -> None:
         if on_error is None:
@@ -491,7 +497,14 @@ def discover_scenarios(
                 visit(parent, (*stack, key))
         if key in failed:
             return
-        broken = next((parent for parent in parents if parent in failed), None)
+        broken = next(
+            (
+                parent
+                for parent in parents
+                if parent in failed or (parent in unreadable and parent not in found)
+            ),
+            None,
+        )
         if broken is not None:
             failed.add(key)
             report(GrammarError(f"{file}: parent {broken!r} failed to load"))
@@ -506,7 +519,8 @@ def discover_scenarios(
         try:
             load(file)
         except GrammarError as err:
-            failed.add(file.stem)  # its key is unknown, so a child may name the file
+            # A child may name the file; it must not hide a later pack.
+            unreadable.add(file.stem)
             report(err)
     for key in list(pending):
         visit(key, ())

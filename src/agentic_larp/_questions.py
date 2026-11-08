@@ -79,6 +79,7 @@ class Question:
     when: Mapping[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "options", tuple(self.options))
         if not self.key.strip():
             message = "a question needs a key"
             raise LarpError(message)

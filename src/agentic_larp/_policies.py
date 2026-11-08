@@ -4,8 +4,9 @@ import random
 import re
 from collections import deque
 from collections.abc import Callable, Sequence
-from typing import Protocol
+from typing import Protocol, cast
 
+from agentic_larp._errors import LarpError
 from agentic_larp._plugins import load_registry
 
 POLICY_ENTRY_POINT_GROUP = "agentic_larp.policies"
@@ -203,6 +204,13 @@ class PhasedPolicy:
         return indexes[rng.choices(range(len(indexes)), weights)[0]]
 
 
+def _check_policy_factory(_name: str, value: object) -> Callable[[], ChoicePolicy]:
+    if not callable(value):
+        message = "not a policy factory"
+        raise LarpError(message)
+    return cast("Callable[[], ChoicePolicy]", value)
+
+
 def policy_registry(
     on_error: Callable[[str, Exception], None] | None = None,
 ) -> dict[str, Callable[[], ChoicePolicy]]:
@@ -222,5 +230,6 @@ def policy_registry(
     return load_registry(
         POLICY_ENTRY_POINT_GROUP,
         {"random": RandomPolicy, "varied": VariedPolicy, "phased": PhasedPolicy},
+        check=_check_policy_factory,
         on_error=on_error,
     )

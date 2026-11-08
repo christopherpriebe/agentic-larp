@@ -37,6 +37,7 @@ class Wall:
 
     The wall only draws and edits the prompt; the stages decide what a
     submitted line means. Its :attr:`mode` picks the header and footer text.
+    Plugins should treat its attributes as read-only.
 
     Attributes:
         sim: The swarm on show.
@@ -113,6 +114,8 @@ class Wall:
 
         Args:
             key: A key name from :func:`agentic_larp.keys.parse_keys`.
+
+        Printable keys also poke the sim: the agents speed up as you type.
 
         Returns:
             The submitted line (stripped, possibly empty) on enter, ``"quit"``

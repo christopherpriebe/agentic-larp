@@ -67,11 +67,19 @@ class App:
         name: What ``--app`` and ``--play`` call it.
         description: One line for ``--list``.
         run: Launches the app.
+
+    Raises:
+        LarpError: If the name is blank.
     """
 
     name: str
     description: str
     run: Callable[[AppContext], None]
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            message = "an app needs a name"
+            raise LarpError(message)
 
     def __call__(self, context: AppContext) -> None:
         self.run(context)

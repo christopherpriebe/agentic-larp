@@ -257,11 +257,14 @@ def test_cli_prints_the_receipt_after_the_app(
 
 
 def test_unknown_app_after_shipping_still_returns_two(
-    capsys: pytest.CaptureFixture[str], clock: FakeClock
+    console: Console, clock: FakeClock
 ) -> None:
-    assert main(["-s", "prod", "--auto", "1", "--speed", "4", "--app", "nope"]) == 2
-    text = capsys.readouterr().out
+    session, _ = make_session(console, auto=1.0, pace=4.0)
+    session.app = "nope"
+    assert run_flow(session) == 2
+    text = output(console)
     assert "no app called 'nope'" in text
+    assert text.index("✓ shipped") > text.index("no app called 'nope'")
     assert clock.now > 1.0
 
 

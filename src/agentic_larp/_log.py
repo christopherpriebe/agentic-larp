@@ -1,6 +1,7 @@
 """The unit of fake agent output."""
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,7 +15,7 @@ class LogLine:
         number: The line number of a diff line.
     """
 
-    kind: str
+    kind: Literal["tool", "diff", "result", "quip", "done"]
     text: str
     label: str = ""
     number: int = 0

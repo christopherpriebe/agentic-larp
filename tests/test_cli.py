@@ -397,3 +397,77 @@ def test_failing_call_finishes_without_a_keyboard(
     assert main(["--play", "call", "--flag", "ending=meltdown"]) == 0
     assert "jk" in capsys.readouterr().out
     assert clock.now < 60.0
+
+
+def test_an_unknown_app_fails_before_the_swarm_runs(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    args = ["--app", "nosuch", "-s", "hacker", "--auto", "0.5", "-i", "0"]
+    assert main(args) == 2
+    text = capsys.readouterr().out
+    assert "no app called 'nosuch'" in text
+    assert "✓ shipped" not in text
+    assert clock.now == 0.0
+
+
+def test_a_pack_naming_an_unknown_app_fails_before_the_swarm_runs(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock, config_home: Path
+) -> None:
+    pack = PACK.replace('app = "stonks"', 'app = "nosuch"')
+    (config_home / "zebra.toml").write_text(pack, encoding="utf-8")
+    assert main(["-s", "zebra", "--auto", "0.5", "-i", "0"]) == 2
+    assert "no app called 'nosuch'" in capsys.readouterr().out
+    assert clock.now == 0.0
+
+
+def test_play_matches_app_names_in_any_case(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    assert main(["--play", "Hacker", "--auto", "1"]) == 0
+    assert clock.now > 1.0
+    assert "connection closed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("value", ["-1", "nan", "inf", "soon"])
+def test_auto_rejects_unusable_values(
+    value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(["--auto", value, "--list"])
+    assert caught.value.code == 2
+    assert "--auto" in capsys.readouterr().err
+
+
+@pytest.mark.usefixtures("clock")
+def test_auto_zero_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
+    args = ["-s", "prod", "--auto", "0", "--length", "1", "--app", "none", "-i", "0"]
+    assert main(args) == 0
+    assert "✓ shipped" in capsys.readouterr().out
+
+
+def test_agents_rejects_text(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as caught:
+        main(["--agents", "abc", "--list"])
+    assert caught.value.code == 2
+    assert "at least 1, not 'abc'" in capsys.readouterr().err
+
+
+def test_then_runs_even_when_the_app_is_unknown(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    args = ["-s", "prod", "--auto", "1", "--app", "nosuch", "--then", "exit 3"]
+    assert main(args) == 3
+    assert "no app called" not in capsys.readouterr().out
+    assert clock.now > 1.0
+
+
+@pytest.mark.parametrize("spelling", ["NONE", "None"])
+def test_app_none_in_any_case_launches_nothing(
+    spelling: str, capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "-i", "0", "--app", spelling]
+    assert main(args) == 0
+    text = capsys.readouterr().out
+    assert "✓ shipped" in text
+    assert "no app called" not in text
+    assert clock.now > 1.0

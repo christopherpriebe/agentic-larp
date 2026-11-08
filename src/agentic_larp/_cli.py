@@ -14,7 +14,14 @@ from rich.markup import escape
 
 from agentic_larp._draw import PANEL_MIN_HEIGHT
 from agentic_larp._errors import GrammarError, LarpError
-from agentic_larp._flow import FLOW, Session, Stage, run_flow, stage_registry
+from agentic_larp._flow import (
+    FLOW,
+    STAGE_ENTRY_POINT_GROUP,
+    Session,
+    Stage,
+    run_flow,
+    stage_registry,
+)
 from agentic_larp._grid import Grid
 from agentic_larp._keys import is_interactive
 from agentic_larp._packs import (
@@ -25,13 +32,22 @@ from agentic_larp._packs import (
     discover_scenarios,
     load_scenario,
 )
-from agentic_larp._policies import ChoicePolicy, policy_registry
+from agentic_larp._policies import (
+    POLICY_ENTRY_POINT_GROUP,
+    ChoicePolicy,
+    policy_registry,
+)
 from agentic_larp._scenarios import pick_scenario
 from agentic_larp._sim import RunMode, Sim, SwarmSettings
 from agentic_larp._stages import LaunchStage, describe_unknown_app
 from agentic_larp._wall import PANEL_MIN_WIDTH, Wall
-from agentic_larp._widgets import PanelWidget, Widget, widget_registry
-from agentic_larp.apps import App, app_registry
+from agentic_larp._widgets import (
+    WIDGET_ENTRY_POINT_GROUP,
+    PanelWidget,
+    Widget,
+    widget_registry,
+)
+from agentic_larp.apps import APP_ENTRY_POINT_GROUP, App, app_registry
 from agentic_larp.meltdown import check_ending
 
 _NON_INTERACTIVE_AUTO = 6.0
@@ -55,6 +71,17 @@ def _parse_speed(text: str) -> float:
     return value
 
 
+def _parse_delay(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value) or value < 0:
+        message = f"must be a finite number of at least 0, not {text!r}"
+        raise argparse.ArgumentTypeError(message)
+    return value
+
+
 def _parse_length(text: str) -> float:
     return _parse_speed(text)
 
@@ -70,11 +97,29 @@ def _parse_agent_count(text: str) -> int:
     return value
 
 
-def _plugin_warner(console: Console) -> Callable[[str, Exception], None]:
+def _plugin_warner(
+    console: Console, group: str | None = None
+) -> Callable[[str, Exception], None]:
+    kind = "plugin" if group is None else f"{group} plugin"
+
     def warn(name: str, error: Exception) -> None:
-        _print_unwrapped(console, f"[yellow]warning: {escape(f'{name}: {error}')}[/]")
+        text = f"{name}: skipped {kind} ({type(error).__name__}: {error})"
+        _print_unwrapped(console, f"[yellow]warning: {escape(text)}[/]")
 
     return warn
+
+
+def _find_apps(name: str, apps: Mapping[str, App]) -> list[str]:
+    if name in apps:
+        return [name]
+    return [key for key in apps if key.casefold() == name.casefold()]
+
+
+def _describe_bad_app(name: str, apps: Mapping[str, App], matches: list[str]) -> str:
+    if len(matches) < 2:  # noqa: PLR2004 - zero matches is unknown, one is fine
+        return describe_unknown_app(name, apps)
+    options = " or ".join(escape(repr(key)) for key in matches)
+    return f"[red]ambiguous app name {escape(repr(name))};[/] did you mean {options}?"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,7 +140,13 @@ def _check_policy(
         parser.error(
             f"argument --policy: unknown policy {name!r}; try: {', '.join(registry)}"
         )
-    if not callable(factory) or not callable(getattr(factory(), "choose", None)):
+    try:
+        policy = factory()
+    except Exception as err:  # noqa: BLE001 - a plugin factory may fail any way it likes
+        parser.error(
+            f"argument --policy: {name!r} failed to build: {type(err).__name__}: {err}"
+        )
+    if not callable(getattr(policy, "choose", None)):
         parser.error(f"argument --policy: {name!r} is not a choice policy")
     return factory
 
@@ -199,7 +250,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--auto",
-        type=float,
+        type=_parse_delay,
         metavar="SECS",
         help="ship automatically after SECS (demo mode)",
     )
@@ -275,16 +326,20 @@ def main(argv: list[str] | None = None) -> int:
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_FLAG
-    warn = _plugin_warner(console)
-    apps = app_registry(on_error=warn)
+    warn = _plugin_warner(console, STAGE_ENTRY_POINT_GROUP)
+    apps = app_registry(on_error=_plugin_warner(console, APP_ENTRY_POINT_GROUP))
     stages = stage_registry(on_error=warn)
-    widgets = widget_registry(on_error=warn)
+    widgets = widget_registry(
+        on_error=_plugin_warner(console, WIDGET_ENTRY_POINT_GROUP)
+    )
     try:
         packs = _collect_packs(args.pack or [], console)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
-    registry = policy_registry(on_error=warn)
+    registry = policy_registry(
+        on_error=_plugin_warner(console, POLICY_ENTRY_POINT_GROUP)
+    )
     if args.list:
         _print_list(console, apps, packs, registry)
         return 0
@@ -300,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
             console,
             auto,
             packs,
-            _Plugins(apps, stages, widgets, warn),
+            _Plugins(apps, stages, widgets, _plugin_warner(console)),
         )
     except KeyboardInterrupt:
         console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
@@ -313,15 +368,17 @@ def _run_play(
     apps: Mapping[str, App],
     auto: float | None,
 ) -> int:
-    if args.play not in apps:
-        console.print(describe_unknown_app(args.play, apps))
+    matches = _find_apps(args.play, apps)
+    if len(matches) != 1:
+        console.print(_describe_bad_app(args.play, apps, matches))
         return _UNKNOWN_APP
+    app = matches[0]
     session = Session(
         console=console,
         task=" ".join(args.task) or "the thing",
         sim=None,
         rng=random.Random(args.seed),
-        app=args.play,
+        app=app,
         auto=auto,
         flags=dict(args.flags),
         apps=apps,
@@ -349,6 +406,11 @@ def _run_show(
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
+    name = args.app or scenarios[0].app
+    matches = [] if name.casefold() == "none" else _find_apps(name, plugins.apps)
+    if len(matches) != 1 and not args.then and name.casefold() != "none":
+        console.print(_describe_bad_app(name, plugins.apps, matches))
+        return _UNKNOWN_APP
     interns = max(0, args.interns)
     width, height = console.size
     grid = cast("Grid | None", args.grid)
@@ -375,7 +437,7 @@ def _run_show(
             task=sim.task,
             sim=sim,
             rng=rng,
-            app=(args.app or sim.scenarios[0].app).lower(),
+            app=matches[0] if len(matches) == 1 else name.casefold(),
             then=args.then,
             auto=auto,
             grid=grid,
@@ -431,4 +493,4 @@ def _print_list(
         console.print(f"  [cyan]{escape(name):<11}[/]")
     console.print("\n[bold]apps[/]  (--app NAME or --play NAME)")
     for name, app in apps.items():
-        console.print(f"  [cyan]{name:<11}[/] {escape(app.description)}")
+        console.print(f"  [cyan]{escape(name):<11}[/] {escape(app.description)}")
