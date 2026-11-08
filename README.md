@@ -339,6 +339,8 @@ error.
 
 ### Events
 
+Events that carry an `agent` hand you an `AgentView` (see "Stable surface" below).
+
 The sim announces what happens on `sim.events`, a typed bus. `subscribe` takes
 an event class (subclasses count, so `Event` hears everything) and a handler,
 and returns a function that unsubscribes. Handlers run in subscription order
@@ -366,7 +368,7 @@ unsubscribe = sim.events.subscribe(TodoDone, lambda event: print(event.todo.text
 The wall has five regions: `header`, `swarm`, `question` (height 0 unless a question is open; read `wall.sim.open_question` and `wall.question_cursor`), `footer` and `panel` (one per
 agent). A full-width region is a `Widget`, with `height(width, available) ->
 int` (rows wanted; 0 hides it) and `render(width)`. The `panel` region is a
-`PanelWidget`, with `render(agent)`. Each is built once from a factory that
+`PanelWidget`, with `render(agent)` (an `AgentView`). Each is built once from a factory that
 takes the `Wall`, so it can subscribe to `wall.sim.events`. Register a class or
 function under the `agentic_larp.widgets` entry-point group, named after the
 region it replaces; the rest stay built in.
@@ -389,10 +391,10 @@ The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError` and
 | Module | For |
 | --- | --- |
 | `agentic_larp.cli` | `main`, `build_parser`, `fit_agents`: the `larp` command |
-| `agentic_larp.sim` | `Sim`, `SwarmSettings`, `Agent`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
+| `agentic_larp.sim` | `Sim`, `SwarmSettings`, `Agent`, `AgentView`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
 | `agentic_larp.questions` | `Question` and `Option`, what agents ask and how you answer |
 | `agentic_larp.events` | `Event` classes and the `EventBus` a sim publishes on |
-| `agentic_larp.stages` | `Session`, `Stage`, `run_flow`, `stage_registry` and the built-in stages |
+| `agentic_larp.stages` | `Session`, `Stage`, `run_flow`, `stage_registry`, `END`, `ABANDON` and the built-in stages; a `ScreenStage` has `on_escape` (escape on an empty prompt) and `on_quit` (a quit word or escape) hooks, which abandon the run by default |
 | `agentic_larp.widgets` | `Wall`, `Widget`, `PanelWidget`, the built-in widgets, `widget_registry` |
 | `agentic_larp.packs` | `Scenario`, `Grammar`, pack loading, discovery and scenario picking |
 | `agentic_larp.policies` | choice policies and `policy_registry` |
@@ -400,6 +402,20 @@ The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError` and
 | `agentic_larp.meltdown` | build and play your app's own meltdown |
 | `agentic_larp.keys` | `Keys`, `KeySource`, `parse_keys`, `is_interactive` |
 | `agentic_larp.plugins` | `load_registry`, the one loader behind every entry-point group |
+
+### Stable surface
+
+Plugins can rely on these; everything else may change between releases.
+
+- `AgentView` (what events and panel widgets receive): `name`, `area`,
+  `files`, `is_done`, `verb`, `finish_at`, `tokens`, `calls`, `todos_done`,
+  `todos`, `log`. It is read-only for type checkers only.
+- `Sim`: `agents`, `interns`, `reports`, `now`, `task`, `orchestrator`,
+  `intern_model`, `events`, `open_question`, `run_time`, `total_tokens`,
+  `total_calls`, `cost`, `running`, `is_all_done`, `is_converged`, `length`,
+  `scenarios`, `elapsed`, `ask`, `answer`, `report`, `ship`, `start_ship`,
+  `spawn_agent`.
+- `Wall`: `sim`, `console`, `mode`, `mode_since`, `buffer`, `question_cursor`.
 
 ### Writing your own app
 

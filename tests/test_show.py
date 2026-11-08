@@ -1,4 +1,5 @@
 import random
+import sys
 from typing import TypeVar
 
 import pytest
@@ -7,6 +8,7 @@ from rich.console import Console
 from agentic_larp.packs import pick_scenario
 from agentic_larp.sim import LogLine, Sim, SwarmSettings
 from agentic_larp.stages import (
+    ABANDON,
     ReadyStage,
     ScreenStage,
     Session,
@@ -15,6 +17,11 @@ from agentic_larp.stages import (
     WrapStage,
 )
 from agentic_larp.widgets import Wall, render_entry
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 def make_sim() -> Sim:
@@ -25,7 +32,7 @@ def make_wall(console: Console) -> Wall:
     return Wall(make_sim(), console)
 
 
-def make_session(console: Console, *, app: str = "none") -> tuple[Session, Sim]:
+def make_session(console: Console, *, app: str | None = None) -> tuple[Session, Sim]:
     sim = make_sim()
     session = Session(
         console=console, task=sim.task, sim=sim, rng=random.Random(4), app=app
@@ -129,8 +136,10 @@ def test_enter_submits_the_stripped_prompt(console: Console) -> None:
     assert wall.handle_key("enter") == ""
 
 
-def test_escape_on_an_empty_prompt_submits_quit(console: Console) -> None:
-    assert make_wall(console).handle_key("esc") == "quit"
+def test_escape_on_an_empty_prompt_submits_nothing(console: Console) -> None:
+    wall = make_wall(console)
+    assert wall.handle_key("esc") is None
+    assert wall.buffer == ""
 
 
 def test_ship_it_twice_wraps_up_then_launches(console: Console) -> None:
@@ -315,3 +324,67 @@ def test_quit_during_the_launch_abandons(console: Console) -> None:
     ship = start(ShipStage(), session)
     type_line(ship, "q")
     assert ship.next_stage == "abandon"
+
+
+def reach_ready(session: Session) -> None:
+    work = start(WorkStage(), session)
+    type_line(work, "ship it")
+    advance(start(WrapStage(), session), 20)
+
+
+def test_escape_and_quit_words_reach_separate_hooks(console: Console) -> None:
+    noted: list[str] = []
+
+    class NoteEscape(ReadyStage):
+        @override
+        def on_escape(self) -> None:
+            noted.append("escape")
+
+    session, _ = make_session(console)
+    reach_ready(session)
+    ready = start(NoteEscape(), session)
+    ready.on_key("esc")
+    assert noted == ["escape"]
+    assert not ready.is_done
+    type_line(ready, "quit")
+    assert ready.is_done
+    assert ready.next_stage == ABANDON
+
+
+@pytest.mark.parametrize("keys", [["esc"], ["q", "enter"]])
+def test_overriding_on_quit_retargets_escape_and_quit_words(
+    keys: list[str], console: Console
+) -> None:
+
+    class QuitToReceipt(ReadyStage):
+        @override
+        def on_quit(self) -> None:
+            self.finish("receipt")
+
+    session, _ = make_session(console)
+    reach_ready(session)
+    ready = start(QuitToReceipt(), session)
+    for key in keys:
+        ready.on_key(key)
+    assert ready.is_done
+    assert ready.next_stage == "receipt"
+
+
+def test_ship_names_it_without_an_app(console: Console) -> None:
+    session, _ = make_session(console)
+    reach_ready(session)
+    ready = start(ReadyStage(), session)
+    type_line(ready, "ship it")
+    ship = start(ShipStage(), session)
+    advance(ship, 4)
+    assert "./it" in screen_text(console, ship)
+
+
+def test_ship_names_the_app_it_launches(console: Console) -> None:
+    session, _ = make_session(console, app="deploy")
+    reach_ready(session)
+    ready = start(ReadyStage(), session)
+    type_line(ready, "ship it")
+    ship = start(ShipStage(), session)
+    advance(ship, 4)
+    assert "./deploy" in screen_text(console, ship)

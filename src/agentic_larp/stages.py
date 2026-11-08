@@ -1,6 +1,7 @@
 """The show as a flow of stages, and the registry to add your own."""
 
 from agentic_larp._flow import (
+    ABANDON,
     END,
     FLOW,
     STAGE_ENTRY_POINT_GROUP,
@@ -24,6 +25,7 @@ from agentic_larp._stages import (
 from agentic_larp._wall import Mode
 
 __all__ = [
+    "ABANDON",
     "END",
     "FLOW",
     "STAGE_ENTRY_POINT_GROUP",

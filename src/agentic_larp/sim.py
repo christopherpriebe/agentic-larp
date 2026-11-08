@@ -3,6 +3,7 @@
 from agentic_larp._log import LogLine
 from agentic_larp._sim import (
     Agent,
+    AgentView,
     Intern,
     RunMode,
     Sim,
@@ -14,6 +15,7 @@ from agentic_larp._sim import (
 
 __all__ = [
     "Agent",
+    "AgentView",
     "Intern",
     "LogLine",
     "RunMode",

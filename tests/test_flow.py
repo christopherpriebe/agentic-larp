@@ -1,27 +1,37 @@
 import importlib.metadata
+import math
 import random
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import pytest
 from rich.console import Console
 
-from agentic_larp import LarpError, main
+from agentic_larp import InvalidValueError, LarpError, main
 from agentic_larp.apps import AppContext
 from agentic_larp.keys import KeySource
 from agentic_larp.packs import pick_scenario
 from agentic_larp.sim import Sim, SwarmSettings
 from agentic_larp.stages import (
+    ABANDON,
     END,
     FLOW,
     STAGE_ENTRY_POINT_GROUP,
+    AbandonStage,
     ReceiptStage,
     Session,
     Stage,
+    WorkStage,
     run_flow,
     stage_registry,
 )
 from support import FakeClock, ScriptedKeys, output
+
+if sys.version_info >= (3, 12):
+    from typing import override
+else:
+    from typing_extensions import override
 
 
 def make_session(
@@ -215,7 +225,7 @@ def test_app_context_carries_the_session(console: Console) -> None:
 
 def test_session_defaults() -> None:
     session = Session(console=Console(), task="t", sim=None, rng=random.Random(0))
-    assert session.app == "none"
+    assert session.app is None
     assert session.then is None
     assert session.auto is None
     assert session.pace == 1.0
@@ -311,3 +321,69 @@ def test_a_wall_stage_needs_a_swarm(console: Console) -> None:
 def test_play_none_is_not_an_app(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--play", "none"]) == 2
     assert "no app called 'none'" in capsys.readouterr().out
+
+
+def test_abandon_names_the_builtin_abandon_stage() -> None:
+    assert ABANDON == "abandon"
+    assert stage_registry()[ABANDON] is AbandonStage
+
+
+def test_a_flow_without_abandon_quits_through_on_quit(
+    console: Console, clock: FakeClock
+) -> None:
+    class QuitToEnd(WorkStage):
+        @override
+        def on_quit(self) -> None:
+            self.finish(END)
+
+    keys = ScriptedKeys(clock, [(1.0, "esc")])
+    session, _ = make_session(console, keys=keys)
+    assert run_flow(session, ("work",), {"work": QuitToEnd}) == 0
+    assert "nothing was built" not in output(console)
+    assert 1.0 <= clock.now < 2.0
+
+
+def test_a_session_without_an_app_launches_nothing(
+    console: Console, clock: FakeClock
+) -> None:
+    session = Session(
+        console=console, task="t", sim=None, rng=random.Random(0), auto=1.0
+    )
+    assert run_flow(session, ("launch",)) == 0
+    assert session.exit_code == 0
+    assert output(console) == ""
+    assert clock.now == 0.0
+
+
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"fps": 0}, "fps"),
+        ({"fps": -1}, "fps"),
+        ({"pace": 0.0}, "pace"),
+        ({"pace": -1.0}, "pace"),
+        ({"pace": math.nan}, "pace"),
+        ({"pace": math.inf}, "pace"),
+        ({"auto": -1.0}, "auto"),
+        ({"auto": math.nan}, "auto"),
+        ({"auto": math.inf}, "auto"),
+    ],
+)
+def test_a_session_rejects_unusable_timing(
+    changes: dict[str, float], field: str
+) -> None:
+
+    with pytest.raises(LarpError, match=field):
+        Session(console=Console(), task="t", sim=None, rng=random.Random(0), **changes)  # ty: ignore[invalid-argument-type] - parametrized kwargs of mixed types
+
+
+def test_unusable_session_timing_is_an_invalid_value_error() -> None:
+    with pytest.raises(InvalidValueError, match="fps"):
+        Session(console=Console(), task="t", sim=None, rng=random.Random(0), fps=0)
+
+
+def test_a_session_accepts_auto_zero() -> None:
+    session = Session(
+        console=Console(), task="t", sim=None, rng=random.Random(0), auto=0.0
+    )
+    assert session.auto == 0.0

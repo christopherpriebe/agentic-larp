@@ -23,7 +23,9 @@ def load_registry(
     Args:
         group: The entry-point group to read plugins from.
         builtins: The registry's own entries, copied first.
-        check: Validates or converts a loaded plugin; it raises to reject.
+        check: Validates or converts a loaded plugin; any
+            exception it raises rejects the plugin (raise ``LarpError`` for a
+            clean message).
         on_error: Called with the plugin name and the error for each plugin
             that fails to load or is rejected, which is then skipped. By
             default the error is raised.

@@ -8,7 +8,13 @@ import pytest
 import agentic_larp
 
 API = {
-    "agentic_larp": {"main", "LarpError", "GrammarError", "__version__"},
+    "agentic_larp": {
+        "main",
+        "LarpError",
+        "GrammarError",
+        "InvalidValueError",
+        "__version__",
+    },
     "agentic_larp.cli": {"main", "build_parser", "fit_agents"},
     "agentic_larp.sim": {
         "Sim",
@@ -20,6 +26,7 @@ API = {
         "format_duration",
         "format_tokens",
         "Intern",
+        "AgentView",
     },
     "agentic_larp.events": {
         "Event",
@@ -41,6 +48,7 @@ API = {
         "ScreenStage",
         "FLOW",
         "END",
+        "ABANDON",
         "PlanStage",
         "WorkStage",
         "WrapStage",
@@ -108,8 +116,7 @@ API = {
     "agentic_larp.keys": {"Keys", "KeySource", "parse_keys", "is_interactive"},
     "agentic_larp.meltdown": {
         "ENDING_FLAG",
-        "MELTDOWN_ENDING",
-        "SUCCESS_ENDING",
+        "Ending",
         "DeathScreen",
         "EXIT_137",
         "KERNEL_PANIC",

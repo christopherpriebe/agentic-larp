@@ -1,5 +1,6 @@
 """The flow: a session walks through named stages, built-in or plugged in."""
 
+import math
 import random
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -10,7 +11,7 @@ from typing import ClassVar, Protocol, cast
 from rich.console import Console, RenderableType
 from rich.live import Live
 
-from agentic_larp._errors import LarpError
+from agentic_larp._errors import InvalidValueError, LarpError
 from agentic_larp._grid import Grid
 from agentic_larp._keys import Keys, KeySource
 from agentic_larp._plugins import load_registry
@@ -21,6 +22,7 @@ from agentic_larp.apps._base import App, AppContext, Screen, run_frames
 
 FLOW: tuple[str, ...] = ("plan", "work", "wrap", "ready", "ship", "launch", "receipt")
 END = "end"
+ABANDON = "abandon"
 STAGE_ENTRY_POINT_GROUP = "agentic_larp.stages"
 _SHIP_WORDS = re.compile(r"\b(ship|send|yolo|lgtm|merge|deploy|push)", re.IGNORECASE)
 _QUIT_WORDS = frozenset({"q", "quit", "exit", ":q"})
@@ -66,13 +68,13 @@ class Session:
         task: What the agents "build".
         sim: The swarm, or ``None`` when the run has no agents.
         rng: Randomness for stages that need it.
-        app: Name of the payoff app to launch, or ``"none"``.
+        app: Name of the payoff app to launch, or ``None`` for no app.
         then: Shell command to run instead of an app, or ``None``.
         auto: Demo mode: ship by itself after this many seconds, or never.
         fps: Frames per second.
         keys: Key source to read from; ``None`` reads the real keyboard.
         grid: Fixed feed grid with spotlight rotation, or ``None``.
-        pace: Fast-forward for tests and demos.
+        pace: Fast-forward for tests and demos; finite and above 0.
         flags: Session flags from ``--flag`` and question answers; ``ending``
             picks the app's ending.
         pinned: Flag keys given on the command line; questions that would
@@ -86,13 +88,17 @@ class Session:
         on_error: Called with the name and error of each plugin that fails
             to load while the session looks registries up; by default the
             error is raised.
+
+    Raises:
+        InvalidValueError: If ``fps`` is not a whole number of at least 1, ``pace`` is
+            not finite and above 0, or ``auto`` is negative or not finite.
     """
 
     console: Console
     task: str
     sim: Sim | None
     rng: random.Random
-    app: str = "none"
+    app: str | None = None
     then: str | None = None
     auto: float | None = None
     fps: int = 20
@@ -110,6 +116,17 @@ class Session:
     _live: Live | None = field(default=None, init=False, repr=False)
     _source: KeySource | None = field(default=None, init=False, repr=False)
     _pending: list[str] = field(default_factory=list, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fps, int) or isinstance(self.fps, bool) or self.fps < 1:
+            message = f"fps must be a whole number of at least 1, not {self.fps!r}"
+            raise InvalidValueError(message)
+        if not (math.isfinite(self.pace) and self.pace > 0):
+            message = f"pace must be a finite number above 0, not {self.pace!r}"
+            raise InvalidValueError(message)
+        if self.auto is not None and not (math.isfinite(self.auto) and self.auto >= 0):
+            message = f"auto must be None or a finite number from 0, not {self.auto!r}"
+            raise InvalidValueError(message)
 
     def app_context(self) -> AppContext:
         """Build the context a payoff app launches with.
@@ -269,6 +286,9 @@ class ScreenStage:
         Returns:
             ``False`` once the stage is done.
         """
+        if key == "esc" and not self.wall.buffer:
+            self.on_escape()
+            return not self.is_done
         text = self.wall.handle_key(key)
         if text is not None:
             self.submit(text)
@@ -305,13 +325,21 @@ class ScreenStage:
         if not text:
             self.on_empty()
         elif text.lower() in _QUIT_WORDS:
-            self.finish("abandon")
+            self.on_quit()
         elif _SHIP_WORDS.search(text):
             self.on_ship(text)
         elif text.lower() in _SPAWN_WORDS:
             self.on_spawn()
         else:
             self.on_text(text)
+
+    def on_escape(self) -> None:
+        """Hook: escape on an empty prompt; quits by default."""
+        self.on_quit()
+
+    def on_quit(self) -> None:
+        """Hook: a quit word or escape; abandons the run by default."""
+        self.finish(ABANDON)
 
     def on_empty(self) -> None:
         """Hook: a bare enter."""
@@ -392,7 +420,7 @@ def stage_registry(
         "ship": _stages.ShipStage,
         "launch": _stages.LaunchStage,
         "receipt": _stages.ReceiptStage,
-        "abandon": _stages.AbandonStage,
+        ABANDON: _stages.AbandonStage,
     }
     registry = load_registry(
         STAGE_ENTRY_POINT_GROUP, builtins, check=_check_stage, on_error=on_error

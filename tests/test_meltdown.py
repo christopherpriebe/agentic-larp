@@ -10,7 +10,7 @@ from rich.text import Text
 
 import agentic_larp
 import agentic_larp.apps
-from agentic_larp import LarpError
+from agentic_larp import InvalidValueError, LarpError
 from agentic_larp.apps import AppContext, app_registry
 from agentic_larp.meltdown import (
     BLUE_SCREEN,
@@ -18,13 +18,13 @@ from agentic_larp.meltdown import (
     ENDING_FLAG,
     EXIT_137,
     KERNEL_PANIC,
-    MELTDOWN_ENDING,
     SHARED_ERRORS,
-    SUCCESS_ENDING,
     DeathScreen,
+    Ending,
     Meltdown,
     MeltdownScreen,
     capture_frame,
+    check_ending,
     decay,
     is_doomed,
     run_meltdown,
@@ -151,7 +151,7 @@ def test_meltdown_rejects_bad_settings(
 
 
 def test_the_ending_values_are_public() -> None:
-    assert (MELTDOWN_ENDING, SUCCESS_ENDING) == ("meltdown", "success")
+    assert [*Ending] == ["meltdown", "success"]
 
 
 def test_the_reveal_prints_literally(console: Console, clock: FakeClock) -> None:
@@ -605,3 +605,25 @@ def test_keys_other_than_escape_do_not_cut_the_meltdown_short(
     mashed = run(make_keys((0.5, "a"), (0.6, "enter"), (0.7, "space"), (0.8, "q")))
     assert untouched > 3.0
     assert mashed == pytest.approx(untouched, abs=0.2)  # within two frames at fps 10
+
+
+@pytest.mark.parametrize("amount", [-0.1, 1.1])
+def test_decay_raises_invalid_value_error(amount: float) -> None:
+    with pytest.raises(InvalidValueError, match="amount"):
+        decay(FRAME, amount, random.Random(0))
+
+
+def test_endings_equal_their_plain_strings(console: Console) -> None:
+    assert Ending.MELTDOWN == "meltdown"
+    assert Ending.SUCCESS == "success"
+    context = AppContext(console=console, task="t", flags={ENDING_FLAG: "meltdown"})
+    assert is_doomed(context)
+    assert not is_doomed(
+        AppContext(console=console, task="t", flags={ENDING_FLAG: "success"})
+    )
+
+
+def test_an_unknown_ending_names_every_ending() -> None:
+    with pytest.raises(LarpError, match="meltdown") as caught:
+        check_ending({ENDING_FLAG: "explode"})
+    assert "success" in str(caught.value)

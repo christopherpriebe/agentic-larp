@@ -21,7 +21,7 @@ from agentic_larp._sim import format_duration, format_tokens
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from agentic_larp._sim import Agent
+    from agentic_larp._sim import AgentView
     from agentic_larp._wall import Wall
 
 REGIONS = ("header", "swarm", "question", "footer", "panel")
@@ -59,7 +59,7 @@ class Widget(Protocol):
 class PanelWidget(Protocol):
     """Draws one agent's panel in the body."""
 
-    def render(self, agent: Agent) -> RenderableType:
+    def render(self, agent: AgentView) -> RenderableType:
         """Draw the panel.
 
         Args:
@@ -149,7 +149,7 @@ class AgentPanel:
     def __init__(self, wall: Wall) -> None:
         self.wall = wall
 
-    def render(self, agent: Agent) -> RenderableType:
+    def render(self, agent: AgentView) -> RenderableType:
         """Build one agent's panel.
 
         Args:

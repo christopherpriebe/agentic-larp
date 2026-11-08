@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
     from agentic_larp._log import LogLine
     from agentic_larp._questions import Option, Question
-    from agentic_larp._sim import Agent, Todo
+    from agentic_larp._sim import AgentView, Todo
 
 E = TypeVar("E", bound="Event")
 
@@ -28,7 +28,7 @@ class AgentSpawned(Event):
         agent: The new agent.
     """
 
-    agent: Agent
+    agent: AgentView
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +40,7 @@ class LineShown(Event):
         line: The line.
     """
 
-    agent: Agent
+    agent: AgentView
     line: LogLine
 
 
@@ -53,7 +53,7 @@ class TodoDone(Event):
         todo: The todo.
     """
 
-    agent: Agent
+    agent: AgentView
     todo: Todo
 
 
@@ -66,7 +66,7 @@ class ScopeCreep(Event):
         added: The todos appended to its list.
     """
 
-    agent: Agent
+    agent: AgentView
     added: tuple[Todo, ...]
 
 
@@ -79,7 +79,7 @@ class AgentFinished(Event):
         final: Its closing remark.
     """
 
-    agent: Agent
+    agent: AgentView
     final: str
 
 
@@ -115,7 +115,7 @@ class QuestionAsked(Event):
         question: What they ask.
     """
 
-    agent: Agent
+    agent: AgentView
     question: Question
 
 
@@ -129,7 +129,7 @@ class QuestionAnswered(Event):
         option: The answer.
     """
 
-    agent: Agent
+    agent: AgentView
     question: Question
     option: Option
 

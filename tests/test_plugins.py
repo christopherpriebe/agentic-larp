@@ -525,3 +525,87 @@ def test_an_ambiguous_app_name_lists_the_matches(
     assert "'hacker'" in text
     assert main(["--play", "Hacker"]) == 0
     assert "MYAPP RAN" in capsys.readouterr().out
+
+
+SUMMARY = "at startup"
+
+
+def test_startup_warnings_are_repeated_after_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    clock: FakeClock,
+) -> None:
+    fake_plugins(monkeypatch, {STAGE_ENTRY_POINT_GROUP: [FakeEntryPoint("review", 42)]})
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "--app", "none", "-i", "0"]
+    assert main(args) == 0
+    text = capsys.readouterr().out
+    assert text.count("warning: review") == 2
+    assert text.rfind("warning: review") > text.find("✓ shipped")
+    assert "1 warning at startup" in text
+    assert clock.now > 1.0
+
+
+def test_pack_warnings_are_repeated_after_the_run(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock, config_home: Path
+) -> None:
+    (config_home / "broken.toml").write_text("[pack", encoding="utf-8")
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "--app", "none", "-i", "0"]
+    assert main(args) == 0
+    text = capsys.readouterr().out
+    assert text.count("broken.toml") == 2
+    assert text.rfind("broken.toml") > text.find("✓ shipped")
+    assert clock.now > 1.0
+
+
+def test_list_prints_each_warning_once(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(monkeypatch, {WIDGET_ENTRY_POINT_GROUP: [BrokenEntryPoint("busted")]})
+    assert main(["--list"]) == 0
+    text = capsys.readouterr().out
+    assert text.count("warning") == 1
+    assert SUMMARY not in text
+
+
+def test_a_clean_run_prints_no_warning_summary(
+    capsys: pytest.CaptureFixture[str], clock: FakeClock
+) -> None:
+    args = ["-s", "prod", "--auto", "1", "--length", "1", "--app", "none", "-i", "0"]
+    assert main(args) == 0
+    text = capsys.readouterr().out
+    assert "warning" not in text
+    assert SUMMARY not in text
+    assert clock.now > 1.0
+
+
+def test_play_repeats_startup_warnings(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake_plugins(
+        monkeypatch,
+        {
+            APP_ENTRY_POINT_GROUP: [
+                FakeEntryPoint("good", loud_app),
+                BrokenEntryPoint("busted"),
+            ]
+        },
+    )
+    assert main(["--play", "good"]) == 0
+    text = capsys.readouterr().out
+    assert text.count("warning: busted") == 2
+    assert text.rfind("warning: busted") > text.find("MYAPP RAN")
+
+
+@pytest.mark.parametrize(
+    "args", [["--play", "nosuch"], ["-s", "nope", "--auto", "1"]], ids=["play", "show"]
+)
+def test_an_early_error_prints_each_warning_once(
+    args: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_plugins(monkeypatch, {WIDGET_ENTRY_POINT_GROUP: [BrokenEntryPoint("busted")]})
+    assert main(args) == 2
+    text = capsys.readouterr().out
+    assert text.count("warning: busted") == 1
+    assert SUMMARY not in text
