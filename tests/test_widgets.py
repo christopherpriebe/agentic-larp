@@ -71,7 +71,7 @@ class Tag:
 
 
 def test_regions_are_the_four_parts_of_the_wall() -> None:
-    assert REGIONS == ("header", "swarm", "footer", "panel")
+    assert REGIONS == ("header", "swarm", "question", "footer", "panel")
     assert set(widget_registry()) >= set(REGIONS)
 
 

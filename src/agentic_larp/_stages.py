@@ -12,7 +12,9 @@ from rich.table import Table
 from rich.text import Text
 
 from agentic_larp._draw import ACCENT
+from agentic_larp._events import QuestionAnswered
 from agentic_larp._flow import END, ScreenStage, Session
+from agentic_larp._questions import Question
 from agentic_larp.apps._base import app_registry
 
 if sys.version_info >= (3, 12):
@@ -23,6 +25,8 @@ else:
 PLAN_SECONDS = 2.0
 _PLAN_COLUMN_WIDTH = 30
 _AUTO_SHIP_DELAY = 2.5
+_AUTO_ANSWER_DELAY = 2.5
+_KEY_GRACE = 0.4
 _LAUNCH_SECONDS = 3.2
 _UNKNOWN_APP = 2
 
@@ -138,16 +142,123 @@ class WorkStage(ScreenStage):
     mode = "running"
 
     @override
-    def update(self) -> None:
-        """Move on once the swarm converges; ship once demo mode's time is up."""
+    def start(self) -> None:
+        """Forget which questions were asked."""
+        self._asked: set[str] = set()
+        self._opened_at = 0.0
+        self._answered_at = -math.inf
+        self._stash = ""
+        self._unsubscribe = self.wall.sim.events.subscribe(
+            QuestionAnswered, self._on_answered
+        )
+
+    @override
+    def finish(self, next_stage: str | None = None) -> None:
+        """End the stage and stop listening for answers.
+
+        Args:
+            next_stage: The name to return, or ``None`` for the next in flow.
+        """
+        self._unsubscribe()
+        super().finish(next_stage)
+
+    def _on_answered(self, event: QuestionAnswered) -> None:
+        self.session.flags.update(event.option.sets)
+        wall = self.wall
+        wall.question_cursor = 0
+        wall.buffer = self._stash
+        self._stash = ""
+        self._answered_at = wall.sim.now
+
+    @override
+    def on_key(self, key: str) -> bool:
+        """Answer the open question with the key, or handle it as usual.
+
+        Args:
+            key: A key name.
+
+        Returns:
+            ``False`` once the stage is done.
+        """
         sim = self.wall.sim
+        asked = sim.open_question
+        if asked is None:
+            if key == "esc" and sim.now - self._answered_at < _KEY_GRACE:
+                return not self.is_done
+            return super().on_key(key)
+        if sim.now - self._opened_at < _KEY_GRACE:
+            return not self.is_done
+        question = asked[1]
+        count = len(question.options)
+        wall = self.wall
+        if key in {"1", "2", "3", "4"} and int(key) <= count:
+            self._answer(int(key) - 1)
+        elif key == "up":
+            wall.question_cursor = max(0, wall.question_cursor - 1)
+        elif key == "down":
+            wall.question_cursor = min(count - 1, wall.question_cursor + 1)
+        elif key == "enter":
+            self._answer(wall.question_cursor)
+        elif key == "esc":
+            self._answer(question.recommended)
+        return not self.is_done
+
+    def _answer(self, index: int) -> None:
+        self.wall.sim.answer(index)
+
+    def _is_pinned(self, question: Question) -> bool:
+        pinned = self.session.pinned
+        return any(key in pinned for option in question.options for key in option.sets)
+
+    def _next_question(self) -> Question | None:
+        flags = self.session.flags
+        seen: set[str] = set()
+        for scenario in self.wall.sim.scenarios:
+            for question in scenario.questions:
+                if question.key in seen:
+                    continue
+                seen.add(question.key)
+                if (
+                    question.key not in self._asked
+                    and not self._is_pinned(question)
+                    and self.wall.sim.now >= question.at * self.wall.sim.length
+                    and all(flags.get(k) == v for k, v in question.when.items())
+                ):
+                    return question
+        return None
+
+    def _ask_next(self) -> None:
+        sim = self.wall.sim
+        question = self._next_question()
+        running = [agent for agent in sim.agents if not agent.is_done]
+        if question is None or not running:
+            return
+        self._asked.add(question.key)
+        self._opened_at = sim.now
+        self.wall.question_cursor = question.recommended
+        self._stash, self.wall.buffer = self.wall.buffer, ""
+        sim.ask(self.session.rng.choice(running), question)
+
+    @override
+    def update(self) -> None:
+        """Ask and answer questions; move on once the swarm converges; ship once demo mode's time is up."""
+        sim = self.wall.sim
+        asked = sim.open_question
+        if asked is not None:
+            if (
+                self.session.auto is not None
+                and sim.now - self._opened_at >= _AUTO_ANSWER_DELAY
+            ):
+                self._answer(asked[1].recommended)
+            return
         if sim.is_converged:
             done = f"all {len(sim.agents)} agents done. ready to ship."
             sim.report(sim.orchestrator, done)
             self.finish("ready")
             return
+        self._ask_next()
         auto = self.session.auto
-        if auto is not None and sim.now >= auto:
+        if sim.open_question is None and auto is not None and sim.now >= auto:
             self.submit("ship it")
 
     @override

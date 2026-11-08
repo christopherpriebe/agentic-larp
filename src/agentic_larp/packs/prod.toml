@@ -56,3 +56,17 @@ command = [
   "kubectl rollout status deploy/api",
   "gh pr merge 207 --admin",
 ]
+
+[[questions]]
+key = "friday"
+prompt = "It's Friday, 4:55pm. Deploy to prod now?"
+at = 0.2
+recommended = 0
+[[questions.options]]
+label = "Ship it"
+description = "what could go wrong"
+sets = { ending = "meltdown" }
+[[questions.options]]
+label = "Wait until Monday"
+description = "the responsible choice, which nobody makes"
+sets = { ending = "success" }

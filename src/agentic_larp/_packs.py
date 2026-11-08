@@ -8,13 +8,14 @@ from dataclasses import dataclass, field
 from importlib import resources
 from pathlib import Path
 
-from agentic_larp._errors import GrammarError
+from agentic_larp._errors import GrammarError, LarpError
 from agentic_larp._grammar import (
     BOUND_SYMBOLS,
     REQUIRED_SYMBOLS,
     Grammar,
     parse_activity,
 )
+from agentic_larp._questions import Option, Question
 
 _BUILTIN_PACKS = (
     "girlfriend",
@@ -51,6 +52,7 @@ class Scenario:
         area_rules: Per-area rules that replace same-named rules in ``grammar``.
         abstract: Whether this is a toolchain to extend, not a pack to run.
         parents: Keys of the packs this one extends, in order.
+        questions: What the agents ask, in order.
         layer: Every rule this pack and its ancestors set or extended, so a
             child can layer them over its own base; rules only inherited from
             the base grammar are left out.
@@ -66,6 +68,7 @@ class Scenario:
     abstract: bool = False
     parents: tuple[str, ...] = ()
     layer: Grammar = field(default_factory=lambda: Grammar({}))
+    questions: tuple[Question, ...] = ()
 
     def grammar_for(self, area: str) -> Grammar:
         """Return the grammar an agent working on an area uses.
@@ -208,6 +211,7 @@ def _parse_scenario(
         areas, overrides = dict(donor.areas), dict(donor.area_rules)
     if not areas and not is_abstract:
         raise _fail(label, "no [areas] (give at least one area with files)")
+    questions = _resolve_questions(label, data.get("questions"), parents)
     keywords = _text_list(label, "[pack] keywords", pack.get("keywords", []))
     if not all(keyword.strip() for keyword in keywords):
         raise _fail(label, "[pack] keywords has an empty keyword")
@@ -222,6 +226,7 @@ def _parse_scenario(
         abstract=is_abstract,
         parents=names,
         layer=layer,
+        questions=questions,
     )
     if not is_abstract:
         try:
@@ -229,6 +234,103 @@ def _parse_scenario(
         except GrammarError as err:
             raise _fail(label, str(err)) from err
     return scenario
+
+
+def _text_table(label: str, where: str, value: object) -> dict[str, str]:
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in value.items()
+    ):
+        raise _fail(label, f"{where} must be a table of text")
+    return dict(value)
+
+
+def _small_int(label: str, where: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _fail(label, f"{where} must be a whole number")
+    return value
+
+
+def _text_field(label: str, where: str, table: dict[str, object], name: str) -> str:
+    value = table.get(name, "" if name != "label" else None)
+    if value is None:
+        raise _fail(label, f"{where} needs a {name} (text)")
+    if not isinstance(value, str):
+        raise _fail(label, f"{where} {name} must be text")
+    return value
+
+
+def _parse_option(label: str, where: str, raw: object) -> Option:
+    if not isinstance(raw, dict):
+        raise _fail(label, f"{where} must be a table")
+    sets = _text_table(label, f"{where} sets", raw.get("sets", {}))
+    return Option(
+        _text_field(label, where, raw, "label"),
+        _text_field(label, where, raw, "description"),
+        sets,
+        _small_int(label, f"{where} todos", raw.get("todos", 0)),
+        _small_int(label, f"{where} spawn", raw.get("spawn", 0)),
+    )
+
+
+def _parse_question(label: str, index: int, raw: object) -> Question:
+    where = f"[[questions]] #{index + 1}"
+    if not isinstance(raw, dict):
+        raise _fail(label, f"{where} must be a table")
+    key = raw.get("key")
+    if not isinstance(key, str):
+        raise _fail(label, f"{where} needs a key (text)")
+    where = f"question {key!r}"
+    prompt = raw.get("prompt")
+    if not isinstance(prompt, str):
+        raise _fail(label, f"{where} needs a prompt (text)")
+    raw_options = raw.get("options")
+    if not isinstance(raw_options, list):
+        raise _fail(label, f"{where} needs [[questions.options]] tables")
+    try:
+        options = tuple(
+            _parse_option(label, f"{where} option #{n + 1}", item)
+            for n, item in enumerate(raw_options)
+        )
+    except GrammarError:
+        raise
+    except LarpError as err:
+        raise _fail(label, f"{where}: {err}") from err
+    at = raw.get("at", 0.5)
+    if not isinstance(at, int | float) or isinstance(at, bool):
+        raise _fail(label, f"{where} at must be a number")
+    return Question(
+        key,
+        prompt,
+        options,
+        _small_int(label, f"{where} recommended", raw.get("recommended", 0)),
+        float(at),
+        _text_table(label, f"{where} when", raw.get("when", {})),
+    )
+
+
+def _resolve_questions(
+    label: str, raw: object, parents: list[Scenario]
+) -> tuple[Question, ...]:
+    # A child's question replaces a parent's with the same key, in place.
+    merged: dict[str, Question] = {}
+    for parent in parents:
+        merged.update((question.key, question) for question in parent.questions)
+    if raw is None:
+        return tuple(merged.values())
+    if not isinstance(raw, list):
+        raise _fail(label, "[[questions]] must be an array of tables")
+    try:
+        merged.update(
+            (question.key, question)
+            for question in (
+                _parse_question(label, n, item) for n, item in enumerate(raw)
+            )
+        )
+    except GrammarError:
+        raise
+    except LarpError as err:
+        raise _fail(label, str(err)) from err
+    return tuple(merged.values())
 
 
 def _parent(label: str, name: str, packs: Mapping[str, Scenario]) -> Scenario:

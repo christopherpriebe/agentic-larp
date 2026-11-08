@@ -68,6 +68,11 @@ While it runs:
 | type `spawn` ⏎ | one more agent joins (only while the agents are still running) |
 | esc | dismiss the agents |
 
+While an agent is asking a question (see [Questions](#questions)), the keys
+are the question's: `1` to `4` answer, `↑`/`↓` and ⏎ pick, and esc takes the
+recommendation, like everyone does. Typing, `ship it` and quitting wait until
+it is answered.
+
 The prompt at the bottom is you messaging the orchestrator, the lead agent
 named in the header. The clock in the header always runs in real time, and it
 stops once every agent is done.
@@ -200,6 +205,45 @@ An `action` expands to a script with one tagged line per row:
 | `ok:` / `fail:` / `note:` | a result line in green, red, or dim |
 | `say:` | a line of agent chatter |
 
+### Questions
+
+An agent can pause mid-run and ask you something, Claude Code style. Its
+panel stops (no tokens, calls or todo progress) until you answer; the others
+keep going and the swarm cannot converge without it. Declare them in a pack
+with `[[questions]]` and nested `[[questions.options]]`:
+
+```toml
+[[questions]]
+key = "friday"                     # names it; a child pack's question with the same key replaces it
+prompt = "Deploy to prod on a Friday?"
+at = 0.2                           # when, as a fraction of --length (0 to 1, default 0.5)
+recommended = 0                    # option index the cursor starts on; esc and demo mode take it
+when = { ending = "success" }      # only asked if every flag matches (optional)
+[[questions.options]]
+label = "Ship it"                  # 2 to 4 options, unique labels
+description = "what could go wrong"
+sets = { ending = "meltdown" }     # session flags this answer sets
+todos = 2                          # 0 to 5 extra todos for the asking agent
+spawn = 1                          # 0 to 3 agents to spawn
+[[questions.options]]
+label = "Wait until Monday"
+sets = { ending = "success" }
+```
+
+Each question is asked once, at the first update after its time, by a random
+running agent, one at a time. Answers set flags (`ending = "meltdown"` makes
+the payoff app break), so later questions can branch with `when`. Children
+replace inherited questions by `key`, in the parent's position; new keys are
+appended. Questions are asked with `--forever` too. `at` is a fraction of
+`--length`; a value near 1 may never come before the swarm converges, and then
+the question is never asked. Keys are ignored for half a second after a
+question opens (so typing does not answer it), and `ship it` answers an open
+question with its recommendation. In demo mode (`--auto`) the recommendation
+is taken after 2.5 seconds of sim time, and auto-ship waits until the question
+is answered. Flags pinned with `--flag` are never changed: a question whose
+options set a pinned flag is skipped, so `--flag ending=success -s prod
+--auto 8` never melts down. `Sim.length` is read-only.
+
 ### Toolchains and pack inheritance
 
 A pack can build on others. `extends = "cpp"` (or `["a", "b"]`) in `[pack]`
@@ -312,11 +356,13 @@ unsubscribe = sim.events.subscribe(TodoDone, lambda event: print(event.todo.text
 | `AgentFinished` | `agent`, `final` | an agent wraps up |
 | `Converged` | | every agent finished its todos; never once shipping has started, so never after a rush |
 | `ShipStarted` | | shipping starts, once: on the first `ship()` (the rush) or when the ready stage ships after convergence (`sim.start_ship()`) |
+| `QuestionAsked` | `agent`, `question` | an agent pauses to ask a question (`sim.ask(agent, question)`) |
+| `QuestionAnswered` | `agent`, `question`, `option` | the question is answered (`sim.answer(index)`) and the agent resumes |
 | `Report` | `who`, `text` | a line for the report feed (`sim.report(who, text)`) |
 
 ### Widgets
 
-The wall has four regions: `header`, `swarm`, `footer` and `panel` (one per
+The wall has five regions: `header`, `swarm`, `question` (height 0 unless a question is open; read `wall.sim.open_question` and `wall.question_cursor`), `footer` and `panel` (one per
 agent). A full-width region is a `Widget`, with `height(width, available) ->
 int` (rows wanted; 0 hides it) and `render(width)`. The `panel` region is a
 `PanelWidget`, with `render(agent)`. Each is built once from a factory that
@@ -343,6 +389,7 @@ The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError` and
 | --- | --- |
 | `agentic_larp.cli` | `main`, `build_parser`, `fit_agents`: the `larp` command |
 | `agentic_larp.sim` | `Sim`, `SwarmSettings`, `Agent`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
+| `agentic_larp.questions` | `Question` and `Option`, what agents ask and how you answer |
 | `agentic_larp.events` | `Event` classes and the `EventBus` a sim publishes on |
 | `agentic_larp.stages` | `Session`, `Stage`, `run_flow`, `stage_registry` and the built-in stages |
 | `agentic_larp.widgets` | `Wall`, `Widget`, `PanelWidget`, the built-in widgets, `widget_registry` |

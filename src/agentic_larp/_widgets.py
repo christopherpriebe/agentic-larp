@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from agentic_larp._sim import Agent
     from agentic_larp._wall import Wall
 
-REGIONS = ("header", "swarm", "footer", "panel")
+REGIONS = ("header", "swarm", "question", "footer", "panel")
 WIDGET_ENTRY_POINT_GROUP = "agentic_larp.widgets"
 HEADER_HEIGHT = 4
 FOOTER_HEIGHT = 1
@@ -159,8 +159,11 @@ class AgentPanel:
             A bordered panel with a live title and footer.
         """
         sim = self.wall.sim
+        asked = sim.open_question
         if agent.is_done:
             icon, color, verb = "✓", "green", "Done"
+        elif asked is not None and asked[0] is agent:
+            icon, color, verb = "●", ACCENT, "Waiting for you"
         else:
             icon = spinner(sim.now, zlib.crc32(agent.name.encode()) % 7 / 10)
             color = ACCENT
@@ -171,6 +174,8 @@ class AgentPanel:
             (f" · {agent.area} ", "dim"),
             (f"· {agent.todos_done}/{len(agent.todos)} ", "dim"),
         )
+        if asked is not None and asked[0] is agent:
+            title.append("· Waiting for you ", style=f"italic {ACCENT}")
         stats = f" {format_duration(sim.elapsed(agent))} · ↓ {format_tokens(agent.tokens)} · "
         subtitle = Text.assemble((stats, "dim"), (verb, f"italic {color}"), " ")
         return Panel(
@@ -256,6 +261,87 @@ class SwarmWidget:
         return Group(Rule(label, style=BORDER, align="left"), grid)
 
 
+class QuestionWidget:
+    """The box an agent's question appears in; hidden when none is open."""
+
+    def __init__(self, wall: Wall) -> None:
+        self.wall = wall
+        self._is_described = True
+        self._has_hint = True
+
+    def _box(self) -> RenderableType:
+        asked = self.wall.sim.open_question
+        if asked is None:
+            return Text("")
+        agent, question = asked
+        cursor = self.wall.question_cursor
+        lines: list[Text] = [Text(question.prompt, style="bold"), Text("")]
+        for index, option in enumerate(question.options):
+            chosen = index == cursor
+            label = f"{index + 1}. {option.label}"
+            if index == question.recommended:
+                label += " (Recommended)"
+            lines.append(
+                Text.assemble(
+                    ("❯ " if chosen else "  ", f"bold {ACCENT}"),
+                    (label, f"bold {ACCENT}" if chosen else ""),
+                )
+            )
+            if option.description and self._is_described:
+                lines.append(Text(f"     {option.description}", style="dim"))
+        if self._has_hint:
+            lines += [
+                Text(""),
+                Text("↑/↓ · enter · esc picks the recommendation", style="dim italic"),
+            ]
+        title = Text.assemble((f" {agent.name} ", "bold"), ("asks ", "dim"))
+        return Panel(
+            Group(*lines),
+            title=title,
+            title_align="left",
+            box=box.ROUNDED,
+            border_style=ACCENT,
+            padding=(0, 1),
+        )
+
+    def height(self, width: int, available: int) -> int:
+        """Return the rows wanted.
+
+        Args:
+            width: Console width.
+            available: Rows left.
+
+        Returns:
+            Zero when nothing is open, otherwise the rows the box fills;
+            descriptions, then the hint, are dropped to fit ``available``.
+        """
+        if self.wall.sim.open_question is None:
+            return 0
+        console = self.wall.console
+        options = console.options.update_width(width)
+        rows = 0
+        for self._is_described, self._has_hint in (
+            (True, True),
+            (False, True),
+            (False, False),
+        ):
+            rows = len(console.render_lines(self._box(), options, pad=False))
+            if rows <= available:
+                break
+        return rows
+
+    def render(self, width: int) -> RenderableType:  # noqa: ARG002 - fits its cell
+        """Build the question box.
+
+        Args:
+            width: Console width.
+
+        Returns:
+            A bordered box with the prompt and numbered options.
+        """
+        return self._box()
+
+
 class FooterWidget:
     """The prompt line with the run's totals."""
 
@@ -285,7 +371,12 @@ class FooterWidget:
         """
         sim = self.wall.sim
         cursor = "█" if int(sim.now * 2) % 2 == 0 else " "
-        if self.wall.mode == "ready":
+        if sim.open_question is not None:
+            prompt = Text.assemble(
+                ("❯ ", "bold cyan"), ("answer the question above", "dim")
+            )
+            hint = "1-4 · ↑/↓ · enter · esc"
+        elif self.wall.mode == "ready":
             prompt = Text.assemble(
                 ("ship it? ❯ ", "bold green"),
                 (self.wall.buffer, "bold"),
@@ -321,6 +412,7 @@ def builtin_widgets() -> dict[str, Callable[[Wall], Widget | PanelWidget]]:
     return {
         "header": HeaderWidget,
         "swarm": SwarmWidget,
+        "question": QuestionWidget,
         "footer": FooterWidget,
         "panel": AgentPanel,
     }
