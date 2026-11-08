@@ -8,8 +8,8 @@ The root is tiny on purpose. The rest of the public API lives in submodules:
 from importlib.metadata import version
 
 from agentic_larp._cli import main
-from agentic_larp._errors import GrammarError, LarpError
+from agentic_larp._errors import GrammarError, InvalidValueError, LarpError
 
-__all__ = ["GrammarError", "LarpError", "__version__", "main"]
+__all__ = ["GrammarError", "InvalidValueError", "LarpError", "__version__", "main"]
 
 __version__ = version("agentic-larp")

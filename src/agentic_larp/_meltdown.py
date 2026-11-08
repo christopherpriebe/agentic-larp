@@ -9,6 +9,7 @@ import math
 import random
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from io import StringIO
 from typing import Protocol
 
@@ -16,12 +17,18 @@ from rich.align import Align
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from agentic_larp._errors import LarpError
+from agentic_larp._errors import InvalidValueError, LarpError
 from agentic_larp.apps._base import AppContext, Screen, run_loop
 
 ENDING_FLAG = "ending"
-MELTDOWN_ENDING = "meltdown"
-SUCCESS_ENDING = "success"
+
+
+class Ending(StrEnum):
+    """The two ways a run can end."""
+
+    MELTDOWN = "meltdown"
+    SUCCESS = "success"
+
 
 SHARED_ERRORS = (
     "rm -rf / --no-preserve-root ... ok",
@@ -194,11 +201,11 @@ def decay(lines: Sequence[str], amount: float, rng: random.Random) -> list[str]:
         Lines of the same count and lengths, with spaces untouched.
 
     Raises:
-        ValueError: If ``amount`` is outside 0 to 1.
+        InvalidValueError: If ``amount`` is outside 0 to 1.
     """
     if not 0 <= amount <= 1:
         message = f"amount must be between 0 and 1, not {amount}"
-        raise ValueError(message)
+        raise InvalidValueError(message)
     return _apply(lines, _plan(lines, rng), amount)
 
 
@@ -352,7 +359,8 @@ def run_meltdown(
 
 
 def _describe_unknown_ending(ending: str) -> str:
-    return f"unknown ending {ending!r}; use {MELTDOWN_ENDING} or {SUCCESS_ENDING}"
+    names = " or ".join(member.value for member in Ending)
+    return f"unknown ending {ending!r}; use {names}"
 
 
 def check_ending(flags: Mapping[str, str]) -> None:
@@ -362,10 +370,10 @@ def check_ending(flags: Mapping[str, str]) -> None:
         flags: The session flags.
 
     Raises:
-        LarpError: If the ending is neither ``meltdown`` nor ``success``.
+        LarpError: If the ending is not one of :class:`Ending`.
     """
     ending = flags.get(ENDING_FLAG)
-    if ending is not None and ending not in {MELTDOWN_ENDING, SUCCESS_ENDING}:
+    if ending is not None and ending not in {member.value for member in Ending}:
         message = _describe_unknown_ending(ending)
         raise LarpError(message)
 
@@ -381,7 +389,7 @@ def is_doomed(context: AppContext) -> bool:
         raises ``LarpError`` (see :func:`check_ending`).
     """
     check_ending(context.flags)
-    return context.flags.get(ENDING_FLAG) == MELTDOWN_ENDING
+    return context.flags.get(ENDING_FLAG) == Ending.MELTDOWN
 
 
 class BreakableScreen(Screen, Protocol):

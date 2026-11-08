@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 from rich.console import Console
 
+from agentic_larp import LarpError
 from agentic_larp.events import (
     AgentFinished,
     AgentSpawned,
@@ -17,8 +18,8 @@ from agentic_larp.events import (
     ShipStarted,
     TodoDone,
 )
-from agentic_larp.packs import pick_scenario
-from agentic_larp.sim import LogLine, RunMode, Sim, SwarmSettings
+from agentic_larp.packs import SCENARIOS, pick_scenario
+from agentic_larp.sim import AgentView, LogLine, RunMode, Sim, SwarmSettings
 from agentic_larp.stages import Session, run_flow
 from support import FakeClock, ScriptedKeys
 
@@ -276,3 +277,46 @@ def test_a_handler_unsubscribed_mid_publish_still_gets_that_event() -> None:
     assert received == ["first", "second"]
     bus.publish(Converged())
     assert received == ["first", "second", "first"]
+
+
+STABLE_AGENT_FIELDS = {
+    "name",
+    "area",
+    "files",
+    "is_done",
+    "verb",
+    "finish_at",
+    "tokens",
+    "calls",
+    "todos_done",
+    "todos",
+    "log",
+}
+
+
+def test_agent_view_names_exactly_the_stable_fields() -> None:
+    members = {name for name in dir(AgentView) if not name.startswith("_")}
+    assert members == STABLE_AGENT_FIELDS
+
+
+def test_events_carry_the_live_agent_as_an_agent_view() -> None:
+    sim = make_sim(length=2.0)
+    seen: list[object] = []
+    sim.events.subscribe(AgentSpawned, lambda event: seen.append(event.agent))
+    sim.events.subscribe(LineShown, lambda event: seen.append(event.agent))
+    sim.events.subscribe(AgentFinished, lambda event: seen.append(event.agent))
+    run(sim, 10.0)
+    assert seen
+    for agent in seen:
+        assert isinstance(agent, AgentView)
+        assert any(agent is live for live in sim.agents)
+
+
+def test_a_sim_rejects_an_agent_from_another_sim() -> None:
+    sim, other = make_sim(), make_sim()
+    stranger = other.agents[0]
+    with pytest.raises(LarpError, match="not an agent of this sim"):
+        sim.elapsed(stranger)
+    question = SCENARIOS["prod"].questions[0]
+    with pytest.raises(LarpError, match="not an agent of this sim"):
+        sim.ask(stranger, question)

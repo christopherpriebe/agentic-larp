@@ -97,16 +97,40 @@ def _parse_agent_count(text: str) -> int:
     return value
 
 
-def _plugin_warner(
-    console: Console, group: str | None = None
-) -> Callable[[str, Exception], None]:
-    kind = "plugin" if group is None else f"{group} plugin"
+class _Warnings:
+    """Print startup warnings as they happen and remember them for later."""
 
-    def warn(name: str, error: Exception) -> None:
-        text = f"{name}: skipped {kind} ({type(error).__name__}: {error})"
-        _print_unwrapped(console, f"[yellow]warning: {escape(text)}[/]")
+    def __init__(self, console: Console) -> None:
+        self.console = console
+        self.lines: list[str] = []
 
-    return warn
+    def _record(self, text: str) -> None:
+        line = f"[yellow]warning: {escape(text)}[/]"
+        self.lines.append(line)
+        _print_unwrapped(self.console, line)
+
+    def plugin(self, group: str | None = None) -> Callable[[str, Exception], None]:
+        kind = "plugin" if group is None else f"{group} plugin"
+
+        def warn(name: str, error: Exception) -> None:
+            self._record(f"{name}: skipped {kind} ({type(error).__name__}: {error})")
+
+        return warn
+
+    def pack(self, error: GrammarError) -> None:
+        self._record(str(error))
+
+    def repeat(self) -> None:
+        if not self.lines:
+            return
+        count = len(self.lines)
+        noun = "warning" if count == 1 else "warnings"
+        self.console.print()
+        self.console.print(
+            f"[yellow]{count} {noun} at startup (the screen hid them):[/]"
+        )
+        for line in self.lines:
+            _print_unwrapped(self.console, line)
 
 
 def _find_apps(name: str, apps: Mapping[str, App]) -> list[str]:
@@ -128,6 +152,7 @@ class _Plugins:
     stages: Mapping[str, Callable[[], Stage]]
     widgets: Mapping[str, Callable[[Wall], Widget | PanelWidget]]
     warn: Callable[[str, Exception], None]
+    warnings: _Warnings
 
 
 def _check_policy(
@@ -326,20 +351,16 @@ def main(argv: list[str] | None = None) -> int:
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_FLAG
-    warn = _plugin_warner(console, STAGE_ENTRY_POINT_GROUP)
-    apps = app_registry(on_error=_plugin_warner(console, APP_ENTRY_POINT_GROUP))
-    stages = stage_registry(on_error=warn)
-    widgets = widget_registry(
-        on_error=_plugin_warner(console, WIDGET_ENTRY_POINT_GROUP)
-    )
+    warnings = _Warnings(console)
+    apps = app_registry(on_error=warnings.plugin(APP_ENTRY_POINT_GROUP))
+    stages = stage_registry(on_error=warnings.plugin(STAGE_ENTRY_POINT_GROUP))
+    widgets = widget_registry(on_error=warnings.plugin(WIDGET_ENTRY_POINT_GROUP))
     try:
-        packs = _collect_packs(args.pack or [], console)
+        packs = _collect_packs(args.pack or [], warnings)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
-    registry = policy_registry(
-        on_error=_plugin_warner(console, POLICY_ENTRY_POINT_GROUP)
-    )
+    registry = policy_registry(on_error=warnings.plugin(POLICY_ENTRY_POINT_GROUP))
     if args.list:
         _print_list(console, apps, packs, registry)
         return 0
@@ -349,17 +370,32 @@ def main(argv: list[str] | None = None) -> int:
         auto = _NON_INTERACTIVE_AUTO
     try:
         if args.play:
-            return _run_play(args, console, apps, auto)
+            return _run_play(args, console, apps, auto, warnings)
         return _run_show(
             args,
             console,
             auto,
             packs,
-            _Plugins(apps, stages, widgets, _plugin_warner(console)),
+            _Plugins(apps, stages, widgets, warnings.plugin(), warnings),
         )
     except KeyboardInterrupt:
         console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
         return _INTERRUPTED
+
+
+def _play_flow(
+    session: Session,
+    flow: tuple[str, ...],
+    stages: Mapping[str, Callable[[], Stage]],
+    warnings: _Warnings,
+) -> int:
+    try:
+        return run_flow(session, flow, stages)
+    except KeyboardInterrupt:
+        session.console.print("\n[dim]ctrl-c. the agents will remember this.[/]")
+        return _INTERRUPTED
+    finally:
+        warnings.repeat()
 
 
 def _run_play(
@@ -367,6 +403,7 @@ def _run_play(
     console: Console,
     apps: Mapping[str, App],
     auto: float | None,
+    warnings: _Warnings,
 ) -> int:
     matches = _find_apps(args.play, apps)
     if len(matches) != 1:
@@ -383,7 +420,7 @@ def _run_play(
         flags=dict(args.flags),
         apps=apps,
     )
-    return run_flow(session, ("launch",), {"launch": LaunchStage})
+    return _play_flow(session, ("launch",), {"launch": LaunchStage}, warnings)
 
 
 def _run_show(
@@ -437,7 +474,7 @@ def _run_show(
             task=sim.task,
             sim=sim,
             rng=rng,
-            app=matches[0] if len(matches) == 1 else name.casefold(),
+            app=_pick_app(name, matches),
             then=args.then,
             auto=auto,
             grid=grid,
@@ -447,22 +484,25 @@ def _run_show(
             widgets=plugins.widgets,
             on_error=plugins.warn,
         )
-        return run_flow(session, FLOW, plugins.stages)
+        return _play_flow(session, FLOW, plugins.stages, plugins.warnings)
     except LarpError as err:
         _print_unwrapped(console, f"[red]{escape(str(err))}[/]")
         return _BAD_PACK
+
+
+def _pick_app(name: str, matches: list[str]) -> str | None:
+    if name.casefold() == "none":
+        return None
+    return matches[0] if len(matches) == 1 else name.casefold()
 
 
 def _print_unwrapped(console: Console, markup: str) -> None:
     console.print(markup, soft_wrap=True)
 
 
-def _collect_packs(files: list[Path], console: Console) -> dict[str, Scenario]:
-    def warn(error: GrammarError) -> None:
-        _print_unwrapped(console, f"[yellow]warning: {escape(str(error))}[/]")
-
+def _collect_packs(files: list[Path], warnings: _Warnings) -> dict[str, Scenario]:
     packs = {**TOOLCHAINS, **SCENARIOS}
-    packs.update(discover_scenarios(default_pack_dirs(), on_error=warn))
+    packs.update(discover_scenarios(default_pack_dirs(), on_error=warnings.pack))
     for file in files:
         scenario = load_scenario(file, packs=packs)
         packs[scenario.key] = scenario

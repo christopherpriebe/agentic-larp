@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from agentic_larp import GrammarError, main
+from agentic_larp import GrammarError, InvalidValueError, LarpError, main
 from agentic_larp.packs import Grammar, load_scenario, pick_scenario
 from agentic_larp.policies import (
     POLICY_ENTRY_POINT_GROUP,
@@ -346,3 +346,23 @@ def test_choosing_a_plugin_that_is_not_a_policy_is_a_usage_error(
     with pytest.raises(SystemExit, match="2"):
         main(["--policy", "bogus"])
     assert "--policy" in capsys.readouterr().err
+
+
+def test_invalid_value_error_is_a_larp_error_and_a_value_error() -> None:
+    assert issubclass(InvalidValueError, LarpError)
+    assert issubclass(InvalidValueError, ValueError)
+
+
+@pytest.mark.parametrize(
+    ("changes", "message"),
+    [
+        ({"memory": 0}, "memory"),
+        ({"penalty": -0.1}, "penalty"),
+        ({"penalty": 1.5}, "penalty"),
+    ],
+)
+def test_varied_policy_settings_raise_invalid_value_error(
+    changes: dict[str, float], message: str
+) -> None:
+    with pytest.raises(InvalidValueError, match=message):
+        VariedPolicy(**changes)  # ty: ignore[invalid-argument-type] - parametrized kwargs of mixed types

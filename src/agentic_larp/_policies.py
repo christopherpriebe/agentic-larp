@@ -6,7 +6,7 @@ from collections import deque
 from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
-from agentic_larp._errors import LarpError
+from agentic_larp._errors import InvalidValueError, LarpError
 from agentic_larp._plugins import load_registry
 
 POLICY_ENTRY_POINT_GROUP = "agentic_larp.policies"
@@ -94,14 +94,14 @@ class VariedPolicy:
                 0 (never) to 1 (no discouragement).
 
         Raises:
-            ValueError: If ``memory`` is below 1 or ``penalty`` is outside 0 to 1.
+            InvalidValueError: If ``memory`` is below 1 or ``penalty`` is outside 0 to 1.
         """
         if memory < 1:
             message = f"memory must be at least 1, not {memory}"
-            raise ValueError(message)
+            raise InvalidValueError(message)
         if not 0 <= penalty <= 1:
             message = f"penalty must be between 0 and 1, not {penalty}"
-            raise ValueError(message)
+            raise InvalidValueError(message)
         self.memory = memory
         self.penalty = penalty
         self._recent: dict[tuple[str, tuple[tuple[str, float], ...]], deque[int]] = {}

@@ -342,7 +342,7 @@ class ShipStage(ScreenStage):
         session = self.session
         if bool(session.then):
             label = (session.then or "").split()[0]
-        elif session.app != "none":
+        elif session.app is not None:
             label = session.app
         else:
             label = "it"
@@ -380,7 +380,7 @@ class LaunchStage:
         session.release_screen()
         if bool(session.then):
             session.exit_code = subprocess.call(session.then, shell=True)  # noqa: S602 - the user's own command; running it is the feature
-        elif session.app != "none":
+        elif session.app is not None:
             apps = (
                 app_registry(session.on_error) if session.apps is None else session.apps
             )

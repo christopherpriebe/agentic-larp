@@ -6,6 +6,7 @@ from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Protocol, runtime_checkable
 
 from agentic_larp._errors import LarpError
 from agentic_larp._events import (
@@ -151,11 +152,74 @@ class SwarmSettings:
             raise LarpError(message)
 
 
+@runtime_checkable
+class AgentView(Protocol):
+    """The stable, read-only view of an agent that events and widgets hand to plugins.
+
+    Read-only is enforced by type checkers only.
+    """
+
+    @property
+    def name(self) -> str:
+        """Return the display name, such as ``maestro-3``."""
+        ...
+
+    @property
+    def area(self) -> str:
+        """Return what the agent is "working" on, such as ``render``."""
+        ...
+
+    @property
+    def files(self) -> tuple[str, ...]:
+        """Return the files it touches."""
+        ...
+
+    @property
+    def is_done(self) -> bool:
+        """Return whether it has finished."""
+        ...
+
+    @property
+    def verb(self) -> str:
+        """Return its current spinner verb."""
+        ...
+
+    @property
+    def finish_at(self) -> float | None:
+        """Return the sim time it wraps up at, or ``None`` before the first "ship it"."""
+        ...
+
+    @property
+    def tokens(self) -> float:
+        """Return the tokens it has pretended to use."""
+        ...
+
+    @property
+    def calls(self) -> int:
+        """Return the tool calls it has pretended to make."""
+        ...
+
+    @property
+    def todos_done(self) -> int:
+        """Return how many todos it has completed."""
+        ...
+
+    @property
+    def todos(self) -> Sequence[Todo]:
+        """Return its todo list."""
+        ...
+
+    @property
+    def log(self) -> Sequence[LogLine]:
+        """Return the lines already shown in its panel."""
+        ...
+
+
 @dataclass(slots=True, eq=False)
 class Agent:
     """A lead agent with its own panel and log.
 
-    Plugins should treat its attributes as read-only.
+    Only the :class:`AgentView` members are stable; the rest may change.
 
     Attributes:
         name: Display name, such as ``maestro-3``.
@@ -303,7 +367,7 @@ class Sim:
         return self._length
 
     @property
-    def open_question(self) -> tuple[Agent, Question] | None:
+    def open_question(self) -> tuple[AgentView, Question] | None:
         """Return the agent waiting for an answer and its question, if any."""
         return self._question
 
@@ -346,7 +410,14 @@ class Sim:
             and all(agent.todos_done == len(agent.todos) for agent in self.agents)
         )
 
-    def elapsed(self, agent: Agent) -> float:
+    def _resolve(self, agent: AgentView) -> Agent:
+        for candidate in self.agents:
+            if candidate is agent:
+                return candidate
+        message = f"{agent.name!r} is not an agent of this sim"
+        raise LarpError(message)
+
+    def elapsed(self, agent: AgentView) -> float:
         """Return the seconds an agent has been working.
 
         Args:
@@ -354,7 +425,11 @@ class Sim:
 
         Returns:
             Seconds, frozen once the agent is done.
-        """
+
+        Raises:
+            LarpError: If ``agent`` is not one of :attr:`agents`.
+        """  # noqa: DOC502 - the error comes from a helper this calls; callers still need to know
+        agent = self._resolve(agent)
         if agent.frozen_elapsed is not None:
             return agent.frozen_elapsed
         return max(0.0, self._run_time - agent.spawn_offset)
@@ -450,7 +525,7 @@ class Sim:
                 agent.finish_at = self.now + self.rng.uniform(0.6, 4.5)
 
     # ---- questions -----------------------------------------------------------
-    def ask(self, agent: Agent, question: Question) -> None:
+    def ask(self, agent: AgentView, question: Question) -> None:
         """Pause an agent until its question is answered.
 
         Args:
@@ -458,8 +533,10 @@ class Sim:
             question: What it asks.
 
         Raises:
-            LarpError: If a question is already open or shipping has started.
+            LarpError: If ``agent`` is not one of :attr:`agents`, a question is
+                already open, or shipping has started.
         """
+        agent = self._resolve(agent)
         if self._is_ship_started:
             message = "shipping has started; no more questions"
             raise LarpError(message)

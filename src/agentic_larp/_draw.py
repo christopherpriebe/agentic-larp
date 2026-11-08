@@ -6,7 +6,7 @@ from rich.console import Console, ConsoleOptions
 from rich.text import Text
 
 from agentic_larp._log import LogLine
-from agentic_larp._sim import Agent
+from agentic_larp._sim import AgentView
 
 SPINNER = "·✢✳✶✻✽✻✶✳✢"
 ACCENT = "#e8875b"
@@ -65,7 +65,7 @@ def render_entry(entry: LogLine, width: int) -> Text:
 class AgentBody:
     """The tail of an agent's log, one line per entry, fitted to its panel."""
 
-    def __init__(self, agent: Agent) -> None:
+    def __init__(self, agent: AgentView) -> None:
         self.agent = agent
 
     def __rich_console__(

@@ -118,11 +118,9 @@ class Wall:
         Printable keys also poke the sim: the agents speed up as you type.
 
         Returns:
-            The submitted line (stripped, possibly empty) on enter, ``"quit"``
-            on escape with an empty prompt, otherwise ``None``.
+            The submitted line (stripped, possibly empty) on enter, otherwise
+            ``None``.
         """
-        if key == "esc" and not self.buffer:
-            return "quit"
         if key == "enter":
             text = self.buffer.strip()
             self.buffer = ""

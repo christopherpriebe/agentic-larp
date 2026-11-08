@@ -10,7 +10,7 @@ from rich.text import Text
 from agentic_larp import LarpError
 from agentic_larp.events import LineShown
 from agentic_larp.packs import pick_scenario
-from agentic_larp.sim import Agent, Sim, SwarmSettings
+from agentic_larp.sim import AgentView, Sim, SwarmSettings
 from agentic_larp.stages import PlanStage, Session, run_flow
 from agentic_larp.widgets import (
     REGIONS,
@@ -66,7 +66,7 @@ class Tag:
     def __init__(self, wall: Wall) -> None:
         self.wall = wall
 
-    def render(self, agent: Agent) -> RenderableType:
+    def render(self, agent: AgentView) -> RenderableType:
         return Text(f"PANEL {agent.name}")
 
 
