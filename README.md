@@ -7,6 +7,13 @@
 Inspired by [programmergrind](https://www.tiktok.com/@programmergrind) on
 TikTok, whose agent swarms ship faster than anyone's. Go watch them.
 
+![A swarm of fake agents builds "ship to prod on a friday", asks whether to
+deploy on a Friday, ships it, and melts prod down. jk.](https://raw.githubusercontent.com/christopherpriebe/agentic-larp/dev/assets/demo.gif)
+
+```bash
+uvx agentic-larp
+```
+
 Cosplay as a 10x AI engineer.
 
 `larp` fills your terminal with a wall of AI agents editing files, running
@@ -565,6 +572,15 @@ release pull request into `main`, and from the release workflow before it
 publishes. It runs lint and type check, the tests on each Python in parallel,
 then coverage combined across them. Work on `dev` is gated locally with
 `uv run nox`; run CI by hand from the Actions tab when you want it.
+
+The demo GIF at the top of this README is scripted in `assets/demo.tape`.
+Re-record it from the repository root with [vhs](https://github.com/charmbracelet/vhs)
+(`vhs assets/demo.tape`); it runs a fixed seed, so the take is repeatable.
+The committed GIF is then shrunk to about 5 MB with ffmpeg:
+
+```bash
+ffmpeg -i assets/demo.gif -vf "fps=10,split[a][b];[a]palettegen=max_colors=48:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle" demo-small.gif && mv demo-small.gif assets/demo.gif
+```
 
 The full-screen loops are tested with a fake clock (`tests/conftest.py`) and
 scripted keystrokes (`tests/support.py`), so a 90-second deploy runs in
