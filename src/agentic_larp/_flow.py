@@ -68,7 +68,8 @@ class Session:
         task: What the agents "build".
         sim: The swarm, or ``None`` when the run has no agents.
         rng: Randomness for stages that need it.
-        app: Name of the payoff app to launch, or ``None`` for no app.
+        app: The app's exact registry key, or ``None`` for no app; the CLI
+            resolves names case-insensitively.
         then: Shell command to run instead of an app, or ``None``.
         auto: Demo mode: ship by itself after this many seconds, or never.
         fps: Frames per second.
@@ -88,6 +89,8 @@ class Session:
         on_error: Called with the name and error of each plugin that fails
             to load while the session looks registries up; by default the
             error is raised.
+
+    Fields are validated when the session is built, not on later assignment.
 
     Raises:
         InvalidValueError: If ``fps`` is not a whole number of at least 1, ``pace`` is

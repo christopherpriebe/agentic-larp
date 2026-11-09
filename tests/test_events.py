@@ -1,5 +1,4 @@
 import random
-from collections import deque
 from collections.abc import Callable
 
 import pytest
@@ -32,8 +31,11 @@ def make_sim(
     mode: RunMode = RunMode.CONVERGE,
     agents: int = 4,
     key: str = "prod",
+    log_length: int | None = 120,
 ) -> Sim:
-    settings = SwarmSettings(agents=agents, interns=0, length=length, mode=mode)
+    settings = SwarmSettings(
+        agents=agents, interns=0, length=length, mode=mode, log_length=log_length
+    )
     return Sim([pick_scenario(None, key)], settings, random.Random(5))
 
 
@@ -120,9 +122,7 @@ def test_spawning_publishes_agent_spawned() -> None:
 
 
 def test_every_line_that_reaches_a_panel_is_published_in_order() -> None:
-    sim = make_sim(length=5.0)
-    for agent in sim.agents:
-        agent.log = deque(agent.log)  # uncapped, to compare everything
+    sim = make_sim(length=5.0, log_length=None)  # uncapped, to compare everything
     start = {agent.name: len(agent.log) for agent in sim.agents}
     shown: dict[str, list[LogLine]] = {agent.name: [] for agent in sim.agents}
     sim.events.subscribe(
@@ -291,6 +291,8 @@ STABLE_AGENT_FIELDS = {
     "todos_done",
     "todos",
     "log",
+    "last_active",
+    "scenario_key",
 }
 
 

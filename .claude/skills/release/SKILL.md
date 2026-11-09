@@ -15,8 +15,16 @@ feature PRs, and a release is `dev` fast-forwarded into `main` plus a tag.
    exists, `git fetch` succeeds and `dev` is not behind `origin/dev`.
    `git log dev..main` is empty: `main` has nothing `dev` lacks. Otherwise
    the user merges `main` into `dev` first.
-2. Bump: `uv run nox -s bump -- $ARGUMENTS`. Show the diff and
-   the new version from `uv version --short`.
+   First release: if `git tag -l "v$(uv version --short)"` is empty (the
+   current version was never tagged) and `CHANGELOG.md` has an
+   `## [Unreleased]` section to promote, `$ARGUMENTS` is not needed. Skip
+   the bump in step 2 and release the current version.
+2. Bump (skip on a first release): `uv run nox -s bump -- $ARGUMENTS`. Show
+   the diff and
+   the new version from `uv version --short`. In `CHANGELOG.md`, rename the
+   `[Unreleased]` heading to the new version with today's date and add an
+   empty `[Unreleased]` heading above it. On a first release, do this too
+   unless the changelog already has a dated heading for the version.
 3. Gate after the bump: `uv run nox`. Nothing is released from a failing
    tree, and the version test must see the new version.
 4. Commit on `dev`: `git commit -am "chore(release): v$(uv version --short)"`.
@@ -30,5 +38,5 @@ feature PRs, and a release is `dev` fast-forwarded into `main` plus a tag.
 
 6. Confirm with the user, then `git push origin dev main --follow-tags`. The
    tag runs `.github/workflows/release.yml`, which checks that the tag is on
-   `main` and matches the project version, then publishes with trusted
-   publishing.
+   `main` and matches the project version, runs the CI gate, then publishes
+   with trusted publishing.

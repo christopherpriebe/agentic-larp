@@ -1,7 +1,7 @@
 import importlib.metadata
 import itertools
 import random
-from collections import Counter, deque
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -138,11 +138,11 @@ def streamed_repeats(policy: Callable[[], ChoicePolicy], directory: Path) -> int
     """
     path = directory / "tiny.toml"
     path.write_text(TINY_PACK, encoding="utf-8")
-    settings = SwarmSettings(agents=8, interns=0, policy=policy, mode=RunMode.ENDLESS)
+    # Uncapped, so the log keeps every line the agent writes.
+    settings = SwarmSettings(
+        agents=8, interns=0, policy=policy, mode=RunMode.ENDLESS, log_length=None
+    )
     sim = Sim([load_scenario(path)], settings, random.Random(12))
-    for agent in sim.agents:
-        # Uncapped, so the log keeps every line the agent writes.
-        agent.log = deque(agent.log)
     for _ in range(4000):
         sim.tick(0.05)
     return sum(

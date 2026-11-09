@@ -117,7 +117,7 @@ class Meltdown:
         death_seconds: Length of the fake-death phase.
 
     Raises:
-        LarpError: If a phase length is negative or not finite, ``shared`` is
+        InvalidValueError: If a phase length is negative or not finite, ``shared`` is
             outside 0 to ``len(SHARED_ERRORS)``, or ``deaths`` is empty.
     """
 
@@ -141,7 +141,7 @@ class Meltdown:
                 message = (
                     f"{label} phase must be a finite number of seconds, not {value}"
                 )
-                raise LarpError(message)
+                raise InvalidValueError(message)
         if (
             not isinstance(self.shared, int)
             or isinstance(self.shared, bool)
@@ -151,13 +151,13 @@ class Meltdown:
                 f"shared must be an int between 0 and {len(SHARED_ERRORS)}, "
                 f"not {self.shared!r}"
             )
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if not self.deaths:
             message = "a meltdown needs at least one death screen"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if not all(isinstance(death, DeathScreen) for death in self.deaths):
             message = "every death screen must be a DeathScreen"
-            raise LarpError(message)
+            raise InvalidValueError(message)
 
 
 def _plan(lines: Sequence[str], rng: random.Random) -> list[list[tuple[float, str]]]:

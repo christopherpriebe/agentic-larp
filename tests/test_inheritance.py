@@ -1,5 +1,4 @@
 import random
-from collections import deque
 from pathlib import Path
 
 import pytest
@@ -233,11 +232,9 @@ def test_list_shows_toolchains(capsys: pytest.CaptureFixture[str]) -> None:
 def run_lines(key: str, seconds: float = 60.0) -> list[LogLine]:
     sim = Sim(
         [pick_scenario(None, key)],
-        SwarmSettings(agents=8, interns=0, mode=RunMode.ENDLESS),
+        SwarmSettings(agents=8, interns=0, mode=RunMode.ENDLESS, log_length=None),
         random.Random(3),
     )
-    for agent in sim.agents:
-        agent.log = deque(agent.log)
     for _ in range(int(seconds / 0.05)):
         sim.tick(0.05)
     return [line for agent in sim.agents for line in agent.log]

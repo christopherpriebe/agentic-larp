@@ -1,5 +1,5 @@
-# Builds and publishes to PyPI when a v* tag is pushed. This is the only
-# workflow in the repo; day-to-day checks run locally with nox.
+# Builds and publishes to PyPI when a v* tag is pushed, after the CI gate
+# (ci.yml) passes on the tagged commit.
 #
 # One-time setup: on PyPI, add a trusted publisher for this repository with
 # workflow "release.yml" and environment "pypi".
@@ -28,8 +28,11 @@ jobs:
         if: github.ref_type == 'tag'
         run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
 
+  gate:
+    uses: ./.github/workflows/ci.yml
+
   build:
-    needs: check-version
+    needs: [check-version, gate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
