@@ -1,11 +1,12 @@
-# The nox gate, on every pull request and push to dev or main. The release
-# workflow calls it too, so nothing reaches PyPI without passing it.
+# The nox gate, run only at release time: on the release pull request into
+# main, and from the release workflow on a v* tag, so nothing reaches PyPI
+# without passing it. Day-to-day work on dev is gated locally with nox.
+# Run it by hand from the Actions tab at any other time.
 name: CI
 
 on:
   pull_request:
-  push:
-    branches: [dev, main]
+    branches: [main]
   workflow_call:
   workflow_dispatch:
 

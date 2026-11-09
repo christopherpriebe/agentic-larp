@@ -50,5 +50,5 @@ The first release. Everything below is new.
 ### Project
 
 - CI runs the nox gate (lint, type check, tests on Python 3.11 to 3.15,
-  coverage) on every pull request, and the release workflow publishes to PyPI
-  only after that gate passes.
+  coverage) on release pull requests into `main` and before publishing; the
+  release workflow publishes to PyPI only after that gate passes.

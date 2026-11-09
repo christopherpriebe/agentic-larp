@@ -560,9 +560,11 @@ uv run larp                # try it
 
 Pass arguments through to pytest with `uv run nox -s tests-3.11 -- -k name`.
 
-`.github/workflows/ci.yml` runs the same sessions on every pull request and
-on pushes to `dev` and `main`: lint and type check, the tests on each Python
-in parallel, then coverage combined across them.
+`.github/workflows/ci.yml` runs the same sessions at release time only: on the
+release pull request into `main`, and from the release workflow before it
+publishes. It runs lint and type check, the tests on each Python in parallel,
+then coverage combined across them. Work on `dev` is gated locally with
+`uv run nox`; run CI by hand from the Actions tab when you want it.
 
 The full-screen loops are tested with a fake clock (`tests/conftest.py`) and
 scripted keystrokes (`tests/support.py`), so a 90-second deploy runs in
