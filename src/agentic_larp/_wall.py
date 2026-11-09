@@ -12,7 +12,7 @@ from rich.text import Text
 
 from agentic_larp._errors import LarpError
 from agentic_larp._grid import Grid
-from agentic_larp._sim import Agent, Sim
+from agentic_larp._sim import AgentView, Sim
 from agentic_larp._widgets import (
     REGIONS,
     PanelWidget,
@@ -64,7 +64,7 @@ class Wall:
         self.console = console
         self.grid = grid
         self.pace = pace
-        self._spotlight: list[Agent] = []
+        self._spotlight: list[AgentView] = []
         self._shown_since: list[float] = []
         self._last_shown: dict[str, float] = {}
         self._last_swap = 0.0
@@ -143,7 +143,7 @@ class Wall:
         self.sim.tick(dt * self.pace)
         self._rotate_spotlight()
 
-    def visible_agents(self) -> list[Agent]:
+    def visible_agents(self) -> list[AgentView]:
         """Return the agents that have a panel on screen right now.
 
         Returns:
@@ -160,7 +160,7 @@ class Wall:
             self._spotlight = []
             return False
         if len(self._spotlight) != grid.cells:
-            self._spotlight = agents[: grid.cells]
+            self._spotlight = list(agents[: grid.cells])
             self._shown_since = [self.sim.now] * grid.cells
         return True
 

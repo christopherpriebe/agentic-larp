@@ -1,14 +1,20 @@
 import random
+from collections.abc import Collection, Sequence
+from typing import assert_type
 
 import pytest
 
-from agentic_larp import LarpError
+from agentic_larp import InvalidValueError, LarpError
+from agentic_larp.events import LineShown
 from agentic_larp.packs import pick_scenario
 from agentic_larp.sim import (
+    AgentView,
+    InternView,
     LogLine,
     RunMode,
     Sim,
     SwarmSettings,
+    Todo,
     format_duration,
     format_tokens,
 )
@@ -121,8 +127,9 @@ def test_ship_finishes_every_agent_and_freezes_their_clocks() -> None:
     assert sim.running == 0
     assert all(intern.is_done for intern in sim.interns)
     for agent in sim.agents:
-        assert agent.log[-1].kind == "done"
-        assert agent.log[-1].text.startswith(f"✓ {agent.area} done")
+        last = list(agent.log)[-1]  # the view promises a collection, not indexing
+        assert last.kind == "done"
+        assert last.text.startswith(f"✓ {agent.area} done")
         frozen = sim.elapsed(agent)
         run(sim, 1)
         assert sim.elapsed(agent) == frozen
@@ -238,10 +245,93 @@ def test_sim_needs_at_least_one_pack() -> None:
         ({"agents": 0}, "at least one agent"),
         ({"activity": 0.0}, "activity"),
         ({"length": float("nan")}, "length"),
+        ({"log_length": 0}, "log_length"),
+        ({"log_length": True}, "log_length"),
+        ({"log_length": 5.5}, "log_length"),
     ],
 )
 def test_swarm_settings_reject_bad_values_when_built(
     changes: dict[str, float], message: str
 ) -> None:
-    with pytest.raises(LarpError, match=message):
+    with pytest.raises(InvalidValueError, match=message):
         SwarmSettings(**changes)  # ty: ignore[invalid-argument-type] - parametrized kwargs of mixed types
+
+
+def test_the_sim_hands_out_read_only_views_of_its_swarm() -> None:
+    sim = make_sim(SwarmSettings(agents=2, interns=3))
+    newcomer = sim.spawn_agent()
+    assert_type(sim.agents, Sequence[AgentView])
+    assert_type(sim.interns, Sequence[InternView])
+    assert_type(newcomer, AgentView)
+    assert_type(newcomer.log, Collection[LogLine])  # no slicing promised: it is a deque
+    assert sim.agents[-1] is newcomer
+    assert all(isinstance(agent, AgentView) for agent in sim.agents)
+    assert all(isinstance(intern, InternView) for intern in sim.interns)
+
+
+def test_an_agent_view_says_which_pack_it_runs_and_when_it_last_spoke() -> None:
+    sim = make_sim(SwarmSettings(agents=2, interns=0))
+    run(sim, 2.0)
+    assert {agent.scenario_key for agent in sim.agents} == {"girlfriend"}
+    assert any(agent.last_active > 0 for agent in sim.agents)
+    assert all(agent.last_active <= sim.now for agent in sim.agents)
+
+
+def test_an_object_without_the_new_view_members_is_not_an_agent_view() -> None:
+    class OldView:
+        name = area = verb = ""
+        files: tuple[str, ...] = ()
+        is_done = False
+        finish_at: float | None = None
+        tokens = 0.0
+        calls = todos_done = 0
+        todos: tuple[()] = ()
+        log: tuple[()] = ()
+
+    assert not isinstance(OldView(), AgentView)
+
+
+def test_an_intern_view_shows_its_task_and_state() -> None:
+    sim = make_sim(SwarmSettings(agents=1, interns=4))
+    for intern in sim.interns:
+        assert intern.name.startswith("intern-")
+        assert intern.task
+        assert isinstance(intern.is_done, bool)
+        assert intern.frozen_elapsed >= 0
+
+
+def test_panel_logs_keep_the_last_120_lines_by_default() -> None:
+    sim = make_sim(SwarmSettings(agents=4, interns=0, mode=RunMode.ENDLESS))
+    run(sim, 60.0)
+    assert max(len(agent.log) for agent in sim.agents) == 120
+
+
+@pytest.mark.parametrize("cap", [5, 150])
+def test_log_length_caps_each_panel_log(cap: int) -> None:
+    settings = SwarmSettings(agents=4, interns=0, mode=RunMode.ENDLESS, log_length=cap)
+    sim = make_sim(settings)
+    run(sim, 60.0)
+    assert max(len(agent.log) for agent in sim.agents) == cap
+
+
+def test_no_log_length_keeps_every_line() -> None:
+    settings = SwarmSettings(agents=4, interns=0, mode=RunMode.ENDLESS, log_length=None)
+    sim = make_sim(settings)
+    shown = {agent.name: len(agent.log) for agent in sim.agents}
+
+    def count(event: LineShown) -> None:
+        shown[event.agent.name] += 1
+
+    sim.events.subscribe(LineShown, count)
+    run(sim, 60.0)
+    assert max(len(agent.log) for agent in sim.agents) > 120
+    assert {agent.name: len(agent.log) for agent in sim.agents} == shown
+
+
+@pytest.mark.parametrize(
+    ("text", "seconds", "message"),
+    [("   ", 3.0, "text"), ("ok", 0.0, "seconds"), ("ok", float("inf"), "seconds")],
+)
+def test_bad_todos_are_invalid_values(text: str, seconds: float, message: str) -> None:
+    with pytest.raises(InvalidValueError, match=message):
+        Todo(text, seconds)

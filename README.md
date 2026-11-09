@@ -384,14 +384,14 @@ a warning and is skipped, like stage and app plugins.
 
 ### Extending (the 0.1 API)
 
-The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError` and
-`__version__`. Everything else is in a submodule, each with an explicit
-`__all__`:
+The root `agentic_larp` exports only `main`, `LarpError`, `GrammarError`,
+`InvalidValueError` and `__version__`. Everything else is in a submodule, each
+with an explicit `__all__`:
 
 | Module | For |
 | --- | --- |
 | `agentic_larp.cli` | `main`, `build_parser`, `fit_agents`: the `larp` command |
-| `agentic_larp.sim` | `Sim`, `SwarmSettings`, `Agent`, `AgentView`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
+| `agentic_larp.sim` | `Sim`, `SwarmSettings`, `AgentView`, `InternView`, `Todo`, `RunMode`, `LogLine`: the fake swarm |
 | `agentic_larp.questions` | `Question` and `Option`, what agents ask and how you answer |
 | `agentic_larp.events` | `Event` classes and the `EventBus` a sim publishes on |
 | `agentic_larp.stages` | `Session`, `Stage`, `run_flow`, `stage_registry`, `END`, `ABANDON` and the built-in stages; a `ScreenStage` has `on_escape` (escape on an empty prompt) and `on_quit` (a quit word or escape) hooks, which abandon the run by default |
@@ -409,7 +409,14 @@ Plugins can rely on these; everything else may change between releases.
 
 - `AgentView` (what events and panel widgets receive): `name`, `area`,
   `files`, `is_done`, `verb`, `finish_at`, `tokens`, `calls`, `todos_done`,
-  `todos`, `log`. It is read-only for type checkers only.
+  `todos`, `log` (a collection; use `list(agent.log)[-n:]` for the last
+  lines), `last_active`, `scenario_key`. It is read-only for type
+  checkers only.
+- `InternView` (an intern in the bottom strip): `name`, `task`, `is_done`,
+  `frozen_elapsed`. Read-only for type checkers only.
+- `SwarmSettings`: `agents`, `interns`, `activity`, `lead_model`,
+  `intern_model`, `policy`, `mode`, `length`, and `log_length` (lines each panel
+  log keeps, default 120; `None` keeps every line).
 - `Sim`: `agents`, `interns`, `reports`, `now`, `task`, `orchestrator`,
   `intern_model`, `events`, `open_question`, `run_time`, `total_tokens`,
   `total_calls`, `cost`, `running`, `is_all_done`, `is_converged`, `length`,
@@ -553,6 +560,12 @@ uv run larp                # try it
 
 Pass arguments through to pytest with `uv run nox -s tests-3.11 -- -k name`.
 
+`.github/workflows/ci.yml` runs the same sessions at release time only: on the
+release pull request into `main`, and from the release workflow before it
+publishes. It runs lint and type check, the tests on each Python in parallel,
+then coverage combined across them. Work on `dev` is gated locally with
+`uv run nox`; run CI by hand from the Actions tab when you want it.
+
 The full-screen loops are tested with a fake clock (`tests/conftest.py`) and
 scripted keystrokes (`tests/support.py`), so a 90-second deploy runs in
 milliseconds.
@@ -607,6 +620,7 @@ From `dev`, with a clean tree and nothing on `main` that `dev` lacks:
 
 ```console
 uv run nox -s bump -- minor
+# in CHANGELOG.md, rename "Unreleased" to the new version and date it
 uv run nox
 git commit -am "chore(release): v$(uv version --short)"
 git switch main && git merge --ff-only dev
@@ -617,8 +631,9 @@ git push origin dev main --follow-tags
 
 The tag is annotated because `--follow-tags` pushes only annotated tags.
 Pushing it runs `.github/workflows/release.yml`, which checks that the tag is
-on `main` and matches the project version, then publishes to PyPI through
-trusted publishing. `/release` runs these steps.
+on `main` and matches the project version, runs the CI gate on the tagged
+commit, then publishes to PyPI through trusted publishing. `/release` runs
+these steps.
 
 ## License
 

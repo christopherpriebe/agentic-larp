@@ -19,14 +19,13 @@ API = {
     "agentic_larp.sim": {
         "Sim",
         "SwarmSettings",
-        "Agent",
         "Todo",
         "RunMode",
         "LogLine",
         "format_duration",
         "format_tokens",
-        "Intern",
         "AgentView",
+        "InternView",
     },
     "agentic_larp.events": {
         "Event",

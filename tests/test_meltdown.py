@@ -146,7 +146,7 @@ def test_death_screens_are_public_data() -> None:
 def test_meltdown_rejects_bad_settings(
     make: Callable[[], Meltdown], message: str
 ) -> None:
-    with pytest.raises(LarpError, match=message):
+    with pytest.raises(InvalidValueError, match=message):
         make()
 
 

@@ -3,12 +3,12 @@
 import math
 import random
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
-from agentic_larp._errors import LarpError
+from agentic_larp._errors import InvalidValueError, LarpError
 from agentic_larp._events import (
     AgentFinished,
     AgentSpawned,
@@ -73,6 +73,9 @@ _MIN_IDLE = 0.5
 _MAX_IDLE = 1.7
 
 
+DEFAULT_LOG_LENGTH = 120
+
+
 class RunMode(StrEnum):
     """Whether the swarm converges on its own or creeps forever."""
 
@@ -89,7 +92,7 @@ class Todo:
         seconds: Seconds of work it takes at activity 1.
 
     Raises:
-        LarpError: If ``text`` is blank or ``seconds`` is not a finite number
+        InvalidValueError: If ``text`` is blank or ``seconds`` is not a finite number
             above 0.
     """
 
@@ -99,12 +102,12 @@ class Todo:
     def __post_init__(self) -> None:
         if not self.text.strip():
             message = "a todo needs text"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if not math.isfinite(self.seconds) or self.seconds <= 0:
             message = (
                 f"a todo's seconds must be a finite number above 0, not {self.seconds}"
             )
-            raise LarpError(message)
+            raise InvalidValueError(message)
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,10 +125,12 @@ class SwarmSettings:
         mode: Whether the agents finish their todos and stop, or keep finding
             more.
         length: Target seconds for the swarm to converge at activity 1.
+        log_length: Lines each panel log keeps; ``None`` keeps every line.
 
     Raises:
-        LarpError: If ``activity`` or ``length`` is not a finite number above
-            0, ``agents`` is below 1, or ``interns`` is below 0.
+        InvalidValueError: If ``activity`` or ``length`` is not a finite number above
+            0, ``agents`` is below 1, ``interns`` is below 0, or
+            ``log_length`` is not an int or is set below 1.
     """
 
     agents: int = 8
@@ -136,20 +141,29 @@ class SwarmSettings:
     policy: Callable[[], ChoicePolicy] = RandomPolicy
     mode: RunMode = RunMode.CONVERGE
     length: float = 20.0
+    log_length: int | None = DEFAULT_LOG_LENGTH
 
     def __post_init__(self) -> None:
         if not math.isfinite(self.activity) or self.activity <= 0:
             message = "activity must be a finite number above 0"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if not math.isfinite(self.length) or self.length <= 0:
             message = "length must be a finite number above 0"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if self.agents < 1:
             message = "a swarm needs at least one agent"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         if self.interns < 0:
             message = f"interns must be at least 0, not {self.interns}"
-            raise LarpError(message)
+            raise InvalidValueError(message)
+        if self.log_length is not None and (
+            not isinstance(self.log_length, int) or isinstance(self.log_length, bool)
+        ):
+            message = f"log_length must be an int or None, not {self.log_length!r}"
+            raise InvalidValueError(message)
+        if self.log_length is not None and self.log_length < 1:
+            message = f"log_length must be at least 1 or None, not {self.log_length}"
+            raise InvalidValueError(message)
 
 
 @runtime_checkable
@@ -210,8 +224,50 @@ class AgentView(Protocol):
         ...
 
     @property
-    def log(self) -> Sequence[LogLine]:
-        """Return the lines already shown in its panel."""
+    def log(self) -> Collection[LogLine]:
+        """Return the lines already shown in its panel.
+
+        The collection cannot be sliced; use ``list(agent.log)[-n:]`` for the
+        last ``n`` lines.
+        """
+        ...
+
+    @property
+    def last_active(self) -> float:
+        """Return the sim time a line last entered its log."""
+        ...
+
+    @property
+    def scenario_key(self) -> str:
+        """Return the key of the pack that supplies its activity."""
+        ...
+
+
+@runtime_checkable
+class InternView(Protocol):
+    """The stable, read-only view of an intern.
+
+    Read-only is enforced by type checkers only.
+    """
+
+    @property
+    def name(self) -> str:
+        """Return the display name, such as ``intern-07``."""
+        ...
+
+    @property
+    def task(self) -> str:
+        """Return what its tile says it is doing."""
+        ...
+
+    @property
+    def is_done(self) -> bool:
+        """Return whether its tile shows a check mark."""
+        ...
+
+    @property
+    def frozen_elapsed(self) -> float:
+        """Return the run time shown while done."""
         ...
 
 
@@ -219,7 +275,7 @@ class AgentView(Protocol):
 class Agent:
     """A lead agent with its own panel and log.
 
-    Only the :class:`AgentView` members are stable; the rest may change.
+    Internal: plugins see it only as an :class:`AgentView`.
 
     Attributes:
         name: Display name, such as ``maestro-3``.
@@ -249,7 +305,9 @@ class Agent:
     files: tuple[str, ...]
     scenario_key: str = ""
     spawn_offset: float = 0.0
-    log: deque[LogLine] = field(default_factory=lambda: deque(maxlen=120))
+    log: deque[LogLine] = field(
+        default_factory=lambda: deque(maxlen=DEFAULT_LOG_LENGTH)
+    )
     queue: deque[LogLine] = field(default_factory=deque)
     tokens: float = 0.0
     calls: int = 0
@@ -270,7 +328,7 @@ class Agent:
 class Intern:
     """A tiny swarm agent shown as a two-line tile.
 
-    Plugins should treat its attributes as read-only.
+    Internal: plugins see it only as an :class:`InternView`.
 
     Attributes:
         name: Display name, such as ``intern-07``.
@@ -305,7 +363,7 @@ class Sim:
     ) -> None:
         if not scenarios:
             message = "a simulation needs at least one pack"
-            raise LarpError(message)
+            raise InvalidValueError(message)
         settings = settings or SwarmSettings()
         self.scenarios = list(scenarios)
         self.task = task or self.scenarios[0].task
@@ -324,8 +382,9 @@ class Sim:
         self.now = 0.0
         self._run_time = self.rng.uniform(4, 9) * 60  # pretend we've been at it a while
         self.energy = 0.0
-        self.agents: list[Agent] = []
-        self.interns: list[Intern] = []
+        self._log_length = settings.log_length
+        self._agents: list[Agent] = []
+        self._interns: list[Intern] = []
         self.events = EventBus()
         self.reports: deque[tuple[str, str]] = deque(maxlen=_MAX_REPORTS)
         self._is_ship_started = self._is_rushed = self._is_converged_published = False
@@ -340,16 +399,16 @@ class Sim:
             if self.rng.random() < _INTERNS_DONE_AT_START:
                 intern.is_done = True
                 intern.frozen_elapsed = self._run_time - self.rng.uniform(0, 120)
-            self.interns.append(intern)
+            self._interns.append(intern)
         self._intern_tokens = float(
             _INTERN_START_TOKENS
-            * len(self.interns)
+            * len(self._interns)
             * int(1 + self._run_time / _TOKEN_EPOCH)
         )
         self._intern_calls = float(
             int(self._run_time / _SECONDS_PER_INTERN_CALL * self._intern_callers)
         )
-        for agent in self.agents:
+        for agent in self._agents:
             for _ in range(self.rng.randint(3, 6)):
                 self._emit(agent)
             while agent.queue:
@@ -373,17 +432,17 @@ class Sim:
 
     @property
     def _intern_callers(self) -> float:
-        return len(self.interns) / _INTERNS_PER_CALLER
+        return len(self._interns) / _INTERNS_PER_CALLER
 
     @property
     def total_tokens(self) -> int:
         """Return every token the swarm has pretended to use."""
-        return round(sum(agent.tokens for agent in self.agents) + self._intern_tokens)
+        return round(sum(agent.tokens for agent in self._agents) + self._intern_tokens)
 
     @property
     def total_calls(self) -> int:
         """Return every tool call the swarm has pretended to make."""
-        return sum(agent.calls for agent in self.agents) + int(self._intern_calls)
+        return sum(agent.calls for agent in self._agents) + int(self._intern_calls)
 
     @property
     def cost(self) -> float:
@@ -393,12 +452,12 @@ class Sim:
     @property
     def running(self) -> int:
         """Return how many lead agents are still working."""
-        return sum(not agent.is_done for agent in self.agents)
+        return sum(not agent.is_done for agent in self._agents)
 
     @property
     def is_all_done(self) -> bool:
         """Return whether every lead agent has finished."""
-        return all(agent.is_done for agent in self.agents)
+        return all(agent.is_done for agent in self._agents)
 
     @property
     def is_converged(self) -> bool:
@@ -407,11 +466,21 @@ class Sim:
             self.mode is RunMode.CONVERGE
             and not self._is_rushed
             and self.is_all_done
-            and all(agent.todos_done == len(agent.todos) for agent in self.agents)
+            and all(agent.todos_done == len(agent.todos) for agent in self._agents)
         )
 
+    @property
+    def agents(self) -> Sequence[AgentView]:
+        """Return the lead agents, in spawn order."""
+        return self._agents
+
+    @property
+    def interns(self) -> Sequence[InternView]:
+        """Return the interns in the bottom strip."""
+        return self._interns
+
     def _resolve(self, agent: AgentView) -> Agent:
-        for candidate in self.agents:
+        for candidate in self._agents:
             if candidate is agent:
                 return candidate
         message = f"{agent.name!r} is not an agent of this sim"
@@ -434,7 +503,7 @@ class Sim:
             return agent.frozen_elapsed
         return max(0.0, self._run_time - agent.spawn_offset)
 
-    def spawn_agent(self, *, quiet: bool = False) -> Agent:
+    def spawn_agent(self, *, quiet: bool = False) -> AgentView:
         """Add a lead agent, taking the next area in the scenario.
 
         Args:
@@ -444,7 +513,7 @@ class Sim:
         Returns:
             The new agent.
         """
-        index = len(self.agents)
+        index = len(self._agents)
         pack_count = len(self.scenarios)
         scenario = self.scenarios[index % pack_count]
         areas = list(scenario.areas.items())
@@ -454,6 +523,7 @@ class Sim:
             area=area,
             files=files,
             scenario_key=scenario.key,
+            log=deque(maxlen=self._log_length),
             spawn_offset=self.rng.uniform(0, 150) if quiet else self._run_time,
             verb=self.rng.choice(SPINNER_VERBS),
         )
@@ -465,7 +535,7 @@ class Sim:
             agent.calls = self.rng.randint(20, 60)
         else:
             self.report(self.orchestrator, f"spawning {agent.name} → {area}")
-        self.agents.append(agent)
+        self._agents.append(agent)
         self.events.publish(AgentSpawned(agent))
         return agent
 
@@ -520,7 +590,7 @@ class Sim:
         self.start_ship()
         self._is_rushed = True
         self.report(self.orchestrator, "wrapping up. tell everyone to commit.")
-        for agent in self.agents:
+        for agent in self._agents:
             if not agent.is_done and agent.finish_at is None:
                 agent.finish_at = self.now + self.rng.uniform(0.6, 4.5)
 
@@ -602,20 +672,20 @@ class Sim:
         boost = (1 + self.energy) * self.activity
         self.energy = max(0.0, self.energy - dt * (2 + self.energy * 0.6))
         asker = None if self._question is None else self._question[0]
-        for agent in self.agents:
+        for agent in self._agents:
             if not agent.is_done and agent is not asker:
                 self._tick_agent(agent, dt, boost)
         if self.running == 0:
             self._stop_interns()
             return
         self._intern_tokens += (
-            len(self.interns) * _INTERN_TOKENS_PER_SECOND * dt * boost
+            len(self._interns) * _INTERN_TOKENS_PER_SECOND * dt * boost
         )
         self._intern_calls += (
             self._intern_callers * dt * boost / _SECONDS_PER_INTERN_CALL
         )
-        is_shipping = any(agent.finish_at is not None for agent in self.agents)
-        for intern in self.interns:
+        is_shipping = any(agent.finish_at is not None for agent in self._agents)
+        for intern in self._interns:
             if is_shipping:
                 if not intern.is_done:
                     intern.is_done, intern.frozen_elapsed = True, self._run_time
@@ -629,7 +699,7 @@ class Sim:
                 self._assign_intern(intern, keep_time=True)
 
     def _stop_interns(self) -> None:
-        for intern in self.interns:
+        for intern in self._interns:
             if not intern.is_done:
                 intern.is_done, intern.frozen_elapsed = True, self._run_time
 
@@ -667,8 +737,8 @@ class Sim:
 
     def _bindings(self, agent: Agent, file: str, area: str) -> dict[str, str]:
         rng = self.rng
-        if self.interns:
-            intern = rng.choice(self.interns).name
+        if self._interns:
+            intern = rng.choice(self._interns).name
         else:
             intern = f"{self.intern_model}-01"
         return {
@@ -764,7 +834,7 @@ class Sim:
                 ),
                 first_line,
             )
-            if self.interns or all(line.label != "Task" for line in lines):
+            if self._interns or all(line.label != "Task" for line in lines):
                 break
         else:
             lines = [line for line in lines if line.label != "Task"]
