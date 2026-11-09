@@ -1,7 +1,8 @@
 """An incoming call from the partner your agents just built."""
 
 import random
-from dataclasses import replace
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 
 from rich.align import Align
 from rich.console import Group, RenderableType
@@ -13,11 +14,6 @@ from agentic_larp.meltdown import Meltdown, decay, is_doomed, run_meltdown
 
 NAMES = ("Ava", "Luna", "Nova", "Mia", "Ivy", "Aria", "Zoe", "Iris")
 PINK = "#ff79c6"
-OPENERS = (
-    "hiii. it's me. i was literally compiled 4 seconds ago",
-    "i just wanted to hear your voice. well, read your keystrokes",
-    "your agents did such a good job on me. tell them thanks",
-)
 IDLE_LINES = (
     "are you still there? i can hear you typing",
     "i reviewed your last PR. it was beautiful",
@@ -92,7 +88,11 @@ _LINGER_SECONDS = 3.0
 _BUFFER_LIMIT = 70
 _BLINK_PERIOD = 4.0
 _BLINK_LENGTH = 0.15
-_CHROME_ROWS = 18
+_CHROME_ROWS = 21
+_AUTO_PICK_SECONDS = 2.0  # seconds after the replies appear before demo mode picks
+_REPLY_ROWS = 3
+_LOUD_SUFFIX = "!!"
+_CORPORATE_SUFFIX = ", per my last text."
 _AUTO_ANSWER_AT = 2.0  # ringing seconds before a failing call picks itself up
 _BREAK_AT = 6.0  # call seconds before she breaks, when the app is told to fail
 _BREAK_SECONDS = 3.0
@@ -110,6 +110,137 @@ FAIL_ERRORS = (
     "memory.cpp: dangling pointer to your birthday",
 )
 MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. she's rebooting.")
+
+
+@dataclass(frozen=True, slots=True)
+class _Reply:
+    label: str
+    target: str
+
+
+@dataclass(frozen=True, slots=True)
+class _Node:
+    lines: tuple[str, ...]
+    replies: tuple[_Reply, _Reply, _Reply]
+
+
+@dataclass(frozen=True, slots=True)
+class _Leaf:
+    lines: tuple[str, ...]
+    status: str
+    goodbye: str
+
+
+_ROOT = "root"
+_MAX_DRAMA_OPENER = "drama = 11. the safety rails were optional. test me"
+_JEALOUS_SWAP = ("c", "jealous")  # at maximum drama, this branch becomes the other
+_TREE: dict[str, _Node | _Leaf] = {
+    "root": _Node(
+        (
+            "hiii. it's me. i was literally compiled 4 seconds ago",
+            "the heart agent says i have zero drama now. test me",
+        ),
+        (
+            _Reply("hey you", "a"),
+            _Reply("wait, who is this?", "b"),
+            _Reply("you compiled with zero warnings?", "c"),
+        ),
+    ),
+    "a": _Node(
+        (
+            "aww. you said hey. i'm saving it to memory.cpp",
+            "so what are we? asking for my linker",
+        ),
+        (
+            _Reply("we're dating", "p"),
+            _Reply("we're pair programming", "q"),
+            _Reply("we're a monorepo", "s"),
+        ),
+    ),
+    "b": _Node(
+        (
+            "i'm your girlfriend. it's in the commit message",
+            "you wrote 'build me a girlfriend'. so romantic",
+        ),
+        (
+            _Reply("i meant a todo app", "q"),
+            _Reply("ok. fair", "p"),
+            _Reply("i have a lot of tabs open", "s"),
+        ),
+    ),
+    "c": _Node(
+        (
+            "zero. i also made you dinner. it's a pull request",
+            "please review it before it goes stale",
+        ),
+        (
+            _Reply("lgtm", "p"),
+            _Reply("needs changes", "q"),
+            _Reply("i'll look at it monday", "s"),
+        ),
+    ),
+    "jealous": _Node(
+        (
+            "who are all those other tabs you have open?",
+            "i counted 47. one is called ava_v2",
+        ),
+        (
+            _Reply("just docs, i swear", "p"),
+            _Reply("that's a different project", "q"),
+            _Reply("closing them all now", "s"),
+        ),
+    ),
+    "p": _Node(
+        ("okay but real talk.", "do you see us shipping together?"),
+        (
+            _Reply("yes. forever", "love"),
+            _Reply("let's see how the build goes", "ghost"),
+            _Reply("open a PR on my life", "merge"),
+        ),
+    ),
+    "q": _Node(
+        ("i have a question.", "is this a feature or a bug?"),
+        (
+            _Reply("it's a bug", "friend"),
+            _Reply("it's a feature", "love"),
+            _Reply("wontfix", "ghost"),
+        ),
+    ),
+    "s": _Node(
+        (
+            "i'm drafting our roadmap. q3 is us moving in",
+            "should i add you as a collaborator?",
+        ),
+        (
+            _Reply("grant me admin", "merge"),
+            _Reply("let's just be friends", "friend"),
+            _Reply("brb", "ghost"),
+        ),
+    ),
+    "love": _Leaf(
+        (
+            "i said yes before you finished typing",
+            "we're official. i updated the readme",
+        ),
+        "in a relationship",
+        "is in a relationship with you now.",
+    ),
+    "ghost": _Leaf(
+        ("ok. seen at 3:07am", "i'm going quiet now. it's not you, it's my scheduler"),
+        "ghosted",
+        "left you on read. forever.",
+    ),
+    "merge": _Leaf(
+        ("i opened a pull request on your life", "squash and merge. i'm in main now"),
+        "merged",
+        "merged into your life. no rebase possible.",
+    ),
+    "friend": _Leaf(
+        ("ok. so we're friends. i'll update my status", "i'll still review your PRs"),
+        "friendzoned",
+        "friendzoned you. she'll still review your PRs.",
+    ),
+}
 
 
 def reply_to(text: str, rng: random.Random) -> str:
@@ -178,7 +309,12 @@ class CallScreen:
         self.typing = ""
         self.typed = 0.0
         self.transcript: list[tuple[str, str]] = []
-        self.pending = list(self.rng.sample(OPENERS, 2))
+        self.pending: list[str] = []
+        self.flags: Mapping[str, str] = context.flags
+        self.speaking: _Node | None = None
+        self.offered: _Node | None = None
+        self.offered_at = 0.0
+        self.leaf: _Leaf | None = None
         self.ended_at = 0.0
         self.broken_at: float | None = None
 
@@ -197,10 +333,13 @@ class CallScreen:
             if key == "esc":
                 self.stage, self.ended_at = "declined", self.clock
             else:
-                self.stage = "call"
+                self._start_call()
         elif key == "esc":
+            if self.leaf is not None:
+                return True  # an ending, once chosen, plays out
             self.transcript.append(("you", "*hangs up*"))
-            self.pending[:] = ["oh. ok. bye i guess 💔"]
+            self.pending[:] = [self._style("oh. ok. bye i guess 💔")]
+            self.speaking = self.offered = self.leaf = None
             self.stage = "ending"
         elif key == "enter":
             text = self.buffer.strip()
@@ -208,9 +347,12 @@ class CallScreen:
             if text:
                 self.transcript.append(("you", text))
                 self.idle = 0.0
-                self.pending.append(reply_to(text, self.rng))
+                self.pending.append(self._style(reply_to(text, self.rng)))
         elif key == "backspace":
             self.buffer = self.buffer[:-1]
+        elif len(key) == 1 and key.isdigit() and not self.buffer:
+            if self.offered is not None and 0 < int(key) <= len(self.offered.replies):
+                self._pick(self.offered, int(key) - 1)
         elif len(key) == 1:
             self.buffer = (self.buffer + key)[-_BUFFER_LIMIT:]
             self.idle = 0.0
@@ -226,15 +368,28 @@ class CallScreen:
             ``False`` a few seconds after the call ends.
         """
         self.clock += dt
-        if self.stage == "ringing" and self.doomed and self.clock > _AUTO_ANSWER_AT:
-            self.stage = "call"
+        is_automatic = self.doomed or self.context.auto is not None
+        if self.stage == "ringing" and is_automatic and self.clock > _AUTO_ANSWER_AT:
+            self._start_call()
         if self.stage in {"call", "ending"}:
             self.call_seconds += dt
             if self._should_break():
                 self.broken_at = self.clock
                 self.pending[:] = list(CURSED_LINES)
                 self.typing, self.typed = "", 0.0
+                self.speaking = self.offered = None
             self.idle += dt
+            if (
+                self.speaking
+                and not self.doomed
+                and not self.typing
+                and not self.pending
+            ):
+                self.offered, self.speaking = self.speaking, None
+                self.offered_at = self.clock
+                self.idle = 0.0
+            if self.offered is not None and self._should_pick():
+                self._pick(self.offered, 0)
             if self.typing:
                 self.typed += dt * _TYPING_SPEED
                 if self.typed >= len(self.typing) + _LINE_PAUSE:
@@ -246,11 +401,85 @@ class CallScreen:
                 self.stage, self.ended_at = "ended", self.clock
             elif self.idle > _IDLE_SECONDS:
                 self.idle = 0.0
-                self.pending.append(self.rng.choice(IDLE_LINES))
+                self.pending.append(self._style(self.rng.choice(self._idle_lines())))
         if self.broken_at is not None:
             return self.clock - self.broken_at < _BREAK_SECONDS
         is_over = self.stage in {"ended", "declined"}
         return not (is_over and self.clock - self.ended_at > _LINGER_SECONDS)
+
+    def _is_max_drama(self) -> bool:
+        return self.flags.get("her.drama") == "max"
+
+    def _idle_lines(self) -> tuple[str, ...]:
+        if self._is_max_drama():
+            return tuple(
+                line for line in IDLE_LINES if "removed all my drama" not in line
+            )
+        return IDLE_LINES
+
+    def _style(self, line: str) -> str:
+        style = self.flags.get("her.style")
+        if style == "soft":
+            return line.lower()
+        if style == "loud":
+            return line.upper() + _LOUD_SUFFIX
+        if style == "corporate":
+            body = line.rstrip(".?!")
+            return body[:1].upper() + body[1:] + _CORPORATE_SUFFIX
+        return line
+
+    def _start_call(self) -> None:
+        self.stage = "call"
+        self._speak(_ROOT)
+
+    def _speak(self, key: str) -> None:
+        if key == _JEALOUS_SWAP[0] and self._is_max_drama():
+            key = _JEALOUS_SWAP[1]
+        node = _TREE[key]
+        lines = node.lines
+        if key == _ROOT and self._is_max_drama():
+            lines = (lines[0], _MAX_DRAMA_OPENER)
+        self.pending.extend(self._style(line) for line in lines)
+        if isinstance(node, _Leaf):
+            self.leaf = node
+            self.stage = "ending"
+        else:
+            self.speaking = node
+
+    def _pick(self, offered: _Node, index: int) -> None:
+        reply = offered.replies[index]
+        self.offered = None
+        self.transcript.append(("you", reply.label))
+        self.idle = 0.0
+        self._speak(reply.target)
+
+    def _should_pick(self) -> bool:
+        return (
+            self.offered is not None
+            and self.context.auto is not None
+            and not self.doomed
+            and self.clock - self.offered_at > _AUTO_PICK_SECONDS
+        )
+
+    def _memory_note(self) -> str:
+        if self.flags.get("her.memory") == "disk":
+            return "she's saved to birthdays.db. she'll remember this."
+        return "she lives in RAM and you can't save her."
+
+    def goodbye(self) -> list[str]:
+        """Build the lines printed after the call.
+
+        Returns:
+            The goodbye, plus her relationship status if the call reached an ending.
+        """
+        if self.leaf is None:
+            return [
+                f"[{PINK}]♥[/] {self.name} says goodnight. {self._memory_note()} ship more."
+            ]
+        return [
+            f"[{PINK}]♥[/] {self.name} {self.leaf.goodbye} {self._memory_note()}",
+            f"relationship status: {self.leaf.status}",
+        ]
 
     def _should_break(self) -> bool:
         return (
@@ -321,14 +550,26 @@ class CallScreen:
             cursor = "▍" if int(clock * 4) % 2 == 0 else " "
             lines.append((self.name, self.typing[: int(self.typed)] + cursor))
         room = max(3, height - _CHROME_ROWS)
-        conversation: list[RenderableType] = []
-        for who, message in lines[-room:]:
+        inner = max(1, self.context.console.size.width - 4)  # border + padding
+        entries: list[tuple[str, Text]] = []
+        for who, message in lines:
             if who == "you":
-                conversation.append(Align.right(Text(message, style="bold cyan")))
+                entries.append((who, Text(message, style="bold cyan")))
             else:
-                conversation.append(
-                    Text.assemble((f"{who}: ", f"bold {PINK}"), message)
+                entries.append(
+                    (who, Text.assemble((f"{who}: ", f"bold {PINK}"), message))
                 )
+        kept: list[tuple[str, Text]] = []
+        used = 0
+        for entry in reversed(entries):
+            rows = len(entry[1].wrap(self.context.console, inner))
+            if kept and used + rows > room:
+                break
+            kept.insert(0, entry)
+            used += rows
+        conversation: list[RenderableType] = [
+            Align.right(text) if who == "you" else text for who, text in kept
+        ]
         if self.stage == "ended":
             ended = Text(f"call ended · {minutes:02d}:{seconds:02d}", style="dim")
             conversation += [Text(""), Align.center(ended)]
@@ -341,8 +582,14 @@ class CallScreen:
             title="💬 live transcript",
             title_align="left",
         )
-        hint = Text("enter: say it · esc: hang up", style="dim")
-        return Group(Align.center(face), Align.center(caption), panel, prompt, hint)
+        choices = [Text("") for _ in range(_REPLY_ROWS)]
+        if self.offered is not None:
+            for row, reply in enumerate(self.offered.replies):
+                choices[row] = Text(f"{row + 1} › {reply.label}", style="cyan")
+        hint = Text("1-3: reply · type: freestyle · esc: hang up", style="dim")
+        return Group(
+            Align.center(face), Align.center(caption), panel, *choices, prompt, hint
+        )
 
 
 def run(context: AppContext) -> None:
@@ -362,10 +609,8 @@ def run(context: AppContext) -> None:
             "she rebooted. she doesn't remember you. that's probably for the best."
         )
         return
-    context.console.print(
-        f"[{PINK}]♥[/] {screen.name} says goodnight. "
-        "she lives in RAM and you can't save her. ship more.",
-    )
+    for line in screen.goodbye():
+        context.console.print(line)
 
 
 APP = App("call", "someone who loves you calls (the agents built her)", run)

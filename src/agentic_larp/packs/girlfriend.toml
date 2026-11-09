@@ -1,8 +1,8 @@
 [pack]
 key = "girlfriend"
 extends = "cpp"
-task = "build me a girlfriend"
-keywords = ["girlfriend", "boyfriend", "partner", "date", "wife", "husband", "love", "single", "girlfriends", "boyfriends", "dating", "partners", "wives", "husbands", "loves", "dates"]
+task = "build me a girlfriend who texts back"
+keywords = ["girlfriend", "girlfriends", "gf", "single"]
 app = "call"
 
 [areas]
@@ -69,3 +69,72 @@ command = [
   "clang-tidy *.cpp",
   "ninja #area#",
 ]
+
+[[questions]]
+key = "drama"
+prompt = "heart.hpp ships with drama = 3. How much should she keep?"
+at = 0.25
+recommended = 0
+[[questions.options]]
+label = "Zero drama"
+description = "she will never raise her voice, or any other float"
+sets = { "her.drama" = "none" }
+[[questions.options]]
+label = "A little, for realism"
+description = "one tiny red flag, to keep the tests honest"
+sets = { "her.drama" = "some" }
+todos = 1
+[[questions.options]]
+label = "drama = 11"
+description = "it goes to eleven"
+sets = { "her.drama" = "max" }
+spawn = 1
+
+[[questions]]
+key = "jealousy"
+prompt = "She wants read access to your DMs."
+at = 0.35
+when = { "her.drama" = "max" }
+recommended = 1
+[[questions.options]]
+label = "Let her read your DMs"
+description = "full trust, no mutex"
+sets = { ending = "meltdown" }
+[[questions.options]]
+label = "Add a mutex"
+description = "healthy boundaries, thread-safe"
+sets = { "her.drama" = "some" }
+todos = 2
+
+[[questions]]
+key = "texting"
+prompt = "How should she text?"
+at = 0.5
+recommended = 0
+[[questions.options]]
+label = "all lowercase"
+description = "soft, like a 2am text"
+sets = { "her.style" = "soft" }
+[[questions.options]]
+label = "ALL CAPS ENTHUSIASM"
+description = "every message is an announcement"
+sets = { "her.style" = "loud" }
+[[questions.options]]
+label = "Corporate"
+description = "she will circle back"
+sets = { "her.style" = "corporate" }
+
+[[questions]]
+key = "memory"
+prompt = "Persist her between runs?"
+at = 0.7
+recommended = 0
+[[questions.options]]
+label = "RAM only"
+description = "she forgets you on exit, like a clean slate"
+sets = { "her.memory" = "ram" }
+[[questions.options]]
+label = "Write to birthdays.db"
+description = "she remembers everything. everything."
+sets = { "her.memory" = "disk" }
+todos = 2
