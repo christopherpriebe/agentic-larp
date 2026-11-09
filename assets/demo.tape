@@ -1,6 +1,6 @@
 # The README demo: a swarm builds, asks about a Friday deploy, ships, melts down.
 # Re-record from the repository root with:  vhs assets/demo.tape
-# then shrink it with the ffmpeg command in the README's development section.
+# then shrink it with the ffmpeg command in CONTRIBUTING.md (The demo GIF).
 Output assets/demo.gif
 
 Set Shell "zsh"
