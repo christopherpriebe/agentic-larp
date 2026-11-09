@@ -8,7 +8,7 @@ Inspired by [programmergrind](https://www.tiktok.com/@programmergrind) on
 TikTok, whose agent swarms ship faster than anyone's. Go watch them.
 
 ![A swarm of fake agents builds "ship to prod on a friday", asks whether to
-deploy on a Friday, ships it, and melts prod down. jk.](https://raw.githubusercontent.com/christopherpriebe/agentic-larp/dev/assets/demo.gif)
+deploy on a Friday, ships it, and melts prod down. jk.](assets/demo.gif)
 
 ```bash
 uvx agentic-larp
