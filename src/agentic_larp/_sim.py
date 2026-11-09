@@ -658,6 +658,14 @@ class Sim:
         return option
 
     # ---- the tick ------------------------------------------------------------
+    def idle(self, dt: float) -> None:
+        """Run the header clock without doing any work.
+
+        Args:
+            dt: Seconds to add to the run time.
+        """
+        self._run_time += dt
+
     def tick(self, dt: float) -> None:
         """Advance the simulation.
 

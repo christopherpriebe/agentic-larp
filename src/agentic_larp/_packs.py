@@ -194,7 +194,12 @@ def _read_pack(
 
 
 def _parse_scenario(
-    text: str, label: str, base: Grammar, packs: Mapping[str, Scenario]
+    text: str,
+    label: str,
+    base: Grammar,
+    packs: Mapping[str, Scenario],
+    *,
+    is_trusted: bool = False,
 ) -> Scenario:
     data, pack, key = _read_pack(label, text)
     is_abstract = bool(pack.get("abstract", False))
@@ -233,7 +238,8 @@ def _parse_scenario(
         layer=layer,
         questions=questions,
     )
-    if not is_abstract:
+    # Built-in packs are smoke-checked by the test suite, not on every startup.
+    if not is_abstract and not is_trusted:
         try:
             _verify(scenario)
         except GrammarError as err:
@@ -551,7 +557,9 @@ def _load_builtins() -> tuple[dict[str, Scenario], dict[str, Scenario]]:
     scenarios: dict[str, Scenario] = {}
     for name in _BUILTIN_PACKS:
         text = _read_resource(f"{name}.toml")
-        scenario = _parse_scenario(text, f"{name}.toml", base, toolchains)
+        scenario = _parse_scenario(
+            text, f"{name}.toml", base, toolchains, is_trusted=True
+        )
         scenarios[scenario.key] = scenario
     return toolchains, scenarios
 

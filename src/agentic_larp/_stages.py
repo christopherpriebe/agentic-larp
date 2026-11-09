@@ -11,7 +11,7 @@ from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
-from agentic_larp._draw import ACCENT
+from agentic_larp._draw import ACCENT, spinner
 from agentic_larp._events import QuestionAnswered
 from agentic_larp._flow import END, ScreenStage, Session
 from agentic_larp._questions import Question
@@ -24,6 +24,7 @@ else:
 
 PLAN_SECONDS = 2.0
 _PLAN_COLUMN_WIDTH = 30
+_PLAN_DISPATCH_SHARE = 0.75
 _AUTO_SHIP_DELAY = 2.5
 _AUTO_ANSWER_DELAY = 2.5
 _KEY_GRACE = 0.4
@@ -79,7 +80,9 @@ class PlanStage(ScreenStage):
         Returns:
             ``False`` once the plan is over.
         """
-        self._elapsed += dt * self.session.pace
+        step = dt * self.session.pace
+        self._elapsed += step
+        self.wall.sim.idle(step)
         if self._elapsed >= PLAN_SECONDS:
             self.finish()
         return not self.is_done
@@ -108,12 +111,19 @@ class PlanStage(ScreenStage):
         for _ in range(columns):
             grid.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
         blocks = []
-        for agent in sim.agents:
+        ready = self._dispatched(count)
+        for index, agent in enumerate(sim.agents):
             todos = [todo.text for todo in agent.todos]
             if len(todos) > shown:
                 hidden = len(todos) - shown + 1
                 todos = [*todos[: shown - 1], f"+{hidden} more"]
-            lines = [Text(agent.name, style="bold", no_wrap=True, overflow="ellipsis")]
+            if index < ready:
+                mark = ("✓ ", "green")
+            else:
+                mark = (spinner(self._elapsed, offset=index * 0.3) + " ", ACCENT)
+            name = Text.assemble(mark, (agent.name, "bold" if index < ready else "dim"))
+            name.no_wrap, name.overflow = True, "ellipsis"
+            lines = [name]
             lines += [
                 Text(f"  ☐ {text}", no_wrap=True, overflow="ellipsis") for text in todos
             ]
@@ -122,11 +132,12 @@ class PlanStage(ScreenStage):
             row: list[RenderableType] = list(blocks[start : start + columns])
             row += [Text("")] * (columns - len(row))
             grid.add_row(*row)
-        heading = Text.assemble(
-            ("● ", "green"),
-            ("TodoWrite", "bold"),
-            (f"({sim.orchestrator}: {count} agents)", "dim"),
-        )
+        if ready < count:
+            bullet = (spinner(self._elapsed) + " ", ACCENT)
+            note = f"({sim.orchestrator}: dispatching {ready}/{count} agents)"
+        else:
+            bullet, note = ("● ", "green"), f"({sim.orchestrator}: {count} agents)"
+        heading = Text.assemble(bullet, ("TodoWrite", "bold"), (note, "dim"))
         parts = [Layout(Group(heading, grid))]
         if header_rows:
             parts.insert(0, Layout(header, size=header_rows))
@@ -135,6 +146,11 @@ class PlanStage(ScreenStage):
         layout = Layout()
         layout.split_column(*parts)
         return layout
+
+    def _dispatched(self, count: int) -> int:
+        """Return how many agents have their todos by now; all of them by 3/4 of the plan."""
+        window = PLAN_SECONDS * _PLAN_DISPATCH_SHARE
+        return min(count, int(self._elapsed / window * count))
 
 
 class WorkStage(ScreenStage):

@@ -1,5 +1,6 @@
 import math
 import random
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -233,6 +234,50 @@ def test_the_plan_moves_on_by_itself(console: Console, clock: FakeClock) -> None
         plan.tick(DT)
     assert plan.is_done
     assert plan.next_stage is None
+
+
+def dispatched(text: str) -> int:
+    return text.count("✓ maestro-")
+
+
+def test_the_plan_dispatches_agents_one_by_one(
+    console: Console, clock: FakeClock
+) -> None:
+    sim = make_sim(agents=4)
+    plan = PlanStage()
+    plan.begin(make_session(console, sim, keys=ScriptedKeys(clock)))
+    counts = [dispatched(screen_text(console, plan))]
+    while not plan.is_done:
+        plan.tick(DT)
+        counts.append(dispatched(screen_text(console, plan)))
+    assert counts[0] == 0
+    assert counts == sorted(counts)
+    assert set(range(5)) <= set(counts)
+    assert counts[-1] == 4
+
+
+def test_the_plan_screen_moves_every_frame(console: Console, clock: FakeClock) -> None:
+    sim = make_sim(agents=3)
+    plan = PlanStage()
+    plan.begin(make_session(console, sim, keys=ScriptedKeys(clock)))
+    frames = [screen_text(console, plan)]
+    for _ in range(5):
+        plan.tick(0.1)
+        frames.append(screen_text(console, plan))
+    assert all(a != b for a, b in pairwise(frames))
+
+
+def test_the_header_clock_runs_during_the_plan(
+    console: Console, clock: FakeClock
+) -> None:
+    sim = make_sim()
+    before = sim.run_time
+    plan = PlanStage()
+    plan.begin(make_session(console, sim, keys=ScriptedKeys(clock)))
+    for _ in range(int(1 / DT)):
+        plan.tick(DT)
+    assert sim.run_time == pytest.approx(before + 1.0)
+    assert all(agent.todos_done == 0 for agent in sim.agents)
 
 
 def test_any_key_skips_the_plan_and_no_work_happens_during_it(

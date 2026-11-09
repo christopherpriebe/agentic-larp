@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import agentic_larp
 from agentic_larp import GrammarError, LarpError
 from agentic_larp.packs import (
     BOUND_SYMBOLS,
@@ -187,6 +188,16 @@ def test_builtin_packs_produce_drawable_activity(key: str) -> None:
         assert grammar.expand("quip", rng, bindings)
         assert grammar.expand("final", rng, bindings)
         assert grammar.expand("intern_task", rng, bindings)
+
+
+@pytest.mark.parametrize("key", sorted(SCENARIOS))
+def test_builtin_pack_files_pass_the_user_pack_checks(key: str) -> None:
+    # Startup trusts the built-in packs and skips their smoke check; this test is
+    # that check, run on the shipped files exactly as a user pack would be.
+    packs_dir = Path(agentic_larp.__file__).parent / "packs"
+    scenario = load_scenario(packs_dir / f"{key}.toml")
+    assert scenario.key == key
+    assert scenario.task == SCENARIOS[key].task
 
 
 def test_builtin_packs_keep_their_apps() -> None:

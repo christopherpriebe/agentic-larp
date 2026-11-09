@@ -8,6 +8,14 @@ plugins can rely on.
 
 ## [Unreleased]
 
+### Fixed
+
+- The opening plan no longer looks frozen: agents are dispatched one by one
+  with spinners, and the header clock runs, instead of a still screen for two
+  seconds.
+- Startup is about 0.1 s faster: the built-in packs are no longer
+  smoke-checked on every launch (the test suite checks them instead).
+
 ## [0.1.0] - 2026-11-09
 
 The first release. Everything below is new.
