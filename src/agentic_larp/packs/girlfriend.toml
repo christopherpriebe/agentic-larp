@@ -103,7 +103,7 @@ sets = { ending = "meltdown" }
 [[questions.options]]
 label = "Add a mutex"
 description = "healthy boundaries, thread-safe"
-sets = { "her.drama" = "some" }
+sets = { "her.drama" = "some", "her.dms" = "mutex" }
 todos = 2
 
 [[questions]]

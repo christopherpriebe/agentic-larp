@@ -16,10 +16,14 @@ from support import FakeClock, ScriptedKeys, output
 
 DT = 0.05
 ANSWER_AT = 1.0
-PICK_EVERY = 8.0  # enough for her to finish a node's lines
+PICK_EVERY = 8.0  # enough for her default lines between picks
 ENDINGS = {"in a relationship", "ghosted", "merged", "friendzoned"}
 STATUS = re.compile(r"relationship status: ([a-z ]+)")
 EVERY_PATH = list(itertools.product("123", repeat=3))
+SLOW_PICK = 12.0  # room for the lines she adds after a pick
+REPLY_ROW = re.compile(
+    "[123] \u203a (\\S[^\\n]*?)\\s*$", re.MULTILINE
+)  # a rendered reply row
 
 
 def call(
@@ -57,10 +61,13 @@ def walk(
     path: tuple[str, ...],
     clock: FakeClock,
     flags: Mapping[str, str] | None = None,
+    every: float = PICK_EVERY,
 ) -> str:
     clock.now = 0.0  # each call gets its own minute on the fake clock
-    picks = ((ANSWER_AT + PICK_EVERY * (i + 1), key) for i, key in enumerate(path))
-    keys = ScriptedKeys(clock, [(ANSWER_AT, "x"), *picks])
+    picks = [(ANSWER_AT + every * (i + 1), key) for i, key in enumerate(path)]
+    # A pick dropped because she was still typing hangs up instead of hanging.
+    hang_up = (ANSWER_AT + every * (len(path) + 1), "esc")
+    keys = ScriptedKeys(clock, [(ANSWER_AT, "x"), *picks, hang_up])
     return call(fresh_console(), keys, flags)
 
 
@@ -334,3 +341,168 @@ def test_persisting_her_changes_the_goodbye(
     goodbye = text.rsplit("\x1b[?1049l", 1)[-1]  # after the full-screen call
     assert present in goodbye
     assert absent not in goodbye
+
+
+# ---- every decision shows up in her ---------------------------------------
+
+
+def said(path: tuple[str, ...], clock: FakeClock, flags: Mapping[str, str]) -> str:
+    return walk(path, clock, flags, every=SLOW_PICK)
+
+
+def after_the_call(text: str) -> str:
+    return text.rsplit("\x1b[?1049l", 1)[-1]
+
+
+def reply_labels(text: str) -> set[str]:
+    return set(REPLY_ROW.findall(text))
+
+
+@pytest.mark.parametrize(
+    ("flags", "is_passive_aggressive"),
+    [
+        ({}, "no"),
+        ({"her.drama": "none"}, "no"),
+        ({"her.drama": "some"}, "yes"),
+        ({"her.drama": "max"}, "no"),
+    ],
+)
+def test_a_little_drama_makes_her_passive_aggressive(
+    clock: FakeClock, flags: dict[str, str], is_passive_aggressive: str
+) -> None:
+    text = said(("1", "1", "1"), clock, flags)
+    assert ("no it's fine, ship your thing" in text) is (is_passive_aggressive == "yes")
+
+
+def test_a_little_drama_changes_what_you_can_say(clock: FakeClock) -> None:
+    calm = reply_labels(said(("1", "1", "1"), clock, {"her.drama": "none"}))
+    petty = reply_labels(said(("1", "1", "1"), clock, {"her.drama": "some"}))
+    assert "we're a monorepo" in calm
+    assert "we're whatever you want, i guess" not in calm
+    assert "we're whatever you want, i guess" in petty
+    assert "we're a monorepo" not in petty
+
+
+GHOSTING_PATHS = [("1", "1", "2"), ("1", "2", "3"), ("2", "3", "3")]
+
+
+@pytest.mark.parametrize(
+    ("flags", "is_patient"),
+    [
+        ({}, "yes"),
+        ({"her.drama": "none"}, "yes"),
+        ({"her.drama": "bogus"}, "yes"),  # unknown means the recommended answer
+        ({"her.drama": "some"}, "no"),
+        ({"her.drama": "max"}, "no"),
+    ],
+)
+def test_zero_drama_waits_forever_when_ghosted(
+    clock: FakeClock, flags: dict[str, str], is_patient: str
+) -> None:
+    ghosted = [
+        text
+        for text in (said(path, clock, flags) for path in GHOSTING_PATHS)
+        if statuses(text) == ["ghosted"]
+    ]
+    assert ghosted
+    for text in ghosted:
+        goodbye = after_the_call(text)
+        assert ("i'll wait. forever" in text) is (is_patient == "yes")
+        assert ("still waiting" in goodbye) is (is_patient == "yes")
+        assert "left you on read" in goodbye
+
+
+@pytest.mark.parametrize(
+    ("flags", "has_mutex"),
+    [
+        ({"her.drama": "some", "her.dms": "mutex"}, "yes"),
+        ({"her.drama": "some"}, "no"),
+        ({}, "no"),
+    ],
+)
+def test_the_mutex_comes_up_on_the_call(
+    clock: FakeClock, flags: dict[str, str], has_mutex: str
+) -> None:
+    text = said(("1", "1", "1"), clock, flags)
+    assert ("behind a mutex" in text) is (has_mutex == "yes")
+    if has_mutex == "yes":  # after your first reply, before her next node
+        assert text.index("1 \u203a hey you") < text.index("behind a mutex")
+        assert text.index("behind a mutex") < text.index("so what are we")
+
+
+def test_adding_a_mutex_is_remembered() -> None:
+    jealousy = question("jealousy")
+    mutex = next(o for o in jealousy.options if o.label == "Add a mutex")
+    assert dict(mutex.sets) == {"her.drama": "some", "her.dms": "mutex"}
+
+
+@pytest.mark.parametrize(
+    ("flags", "present", "absent"),
+    [
+        (
+            {"her.memory": "disk", "her.drama": "none"},
+            ["i remember you building me", "drama = 0"],
+            ["who are you again"],
+        ),
+        (
+            {"her.memory": "disk", "her.style": "corporate"},
+            ["i remember you building me", "corporate"],
+            ["who are you again"],
+        ),
+        (
+            {"her.memory": "disk", "her.style": "loud"},
+            ["I REMEMBER YOU BUILDING ME", "ALL CAPS"],
+            ["WHO ARE YOU AGAIN"],
+        ),
+        ({"her.memory": "ram"}, ["who are you again"], ["i remember you building me"]),
+        ({}, ["who are you again"], ["i remember you building me", "drama = 0"]),
+        (
+            {"her.style": "corporate"},
+            ["who are you again"],
+            ["corporate"],
+        ),
+    ],
+)
+def test_her_memory_follows_where_you_saved_her(
+    clock: FakeClock,
+    flags: dict[str, str],
+    present: list[str],
+    absent: list[str],
+) -> None:
+    text = said(("1", "1", "1"), clock, flags)
+    for phrase in present:
+        assert phrase in text
+    for phrase in absent:
+        assert phrase not in text
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        {"her.drama": "none", "her.memory": "disk"},
+        {"her.drama": "some", "her.memory": "ram"},
+        {"her.drama": "some", "her.dms": "mutex", "her.memory": "disk"},
+        {"her.drama": "max", "her.memory": "disk", "her.style": "loud"},
+    ],
+)
+def test_every_build_still_reaches_every_ending(
+    clock: FakeClock, flags: dict[str, str]
+) -> None:
+    reached = set()
+    for path in EVERY_PATH:
+        found = statuses(said(path, clock, flags))
+        assert len(found) == 1, path
+        reached.add(found[0])
+    assert reached == ENDINGS
+
+
+def test_she_remembers_after_your_first_reply(clock: FakeClock) -> None:
+    text = said(("1", "1", "1"), clock, {"her.memory": "disk"})
+    recall = text.index("i remember you building me")
+    assert text.index("1 \u203a hey you") < recall < text.index("so what are we")
+
+
+def test_she_forgets_after_your_second_reply(clock: FakeClock) -> None:
+    text = said(("1", "1", "1"), clock, {})
+    forgot = text.index("who are you again")
+    assert text.index("so what are we") < forgot < text.index("okay but real talk")

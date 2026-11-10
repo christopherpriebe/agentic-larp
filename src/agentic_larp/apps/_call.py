@@ -2,7 +2,7 @@
 
 import random
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from rich.align import Align
 from rich.console import Group, RenderableType
@@ -45,7 +45,7 @@ RESPONSES = (
     (("ship", "deploy", "merge"), ("you ship so hard. it's honestly hot", "lgtm 💅")),
     (
         ("sorry",),
-        ("no drama. literally. drama = 0", "it's okay. i already forgot (forget(ex);)"),
+        ("no drama. literally. zero", "it's okay. i already forgot (forget(ex);)"),
     ),
     (
         ("beautiful", "pretty", "gorgeous", "cute"),
@@ -112,16 +112,34 @@ FAIL_ERRORS = (
 MELTDOWN = Meltdown(errors=FAIL_ERRORS, reveal="jk. she's rebooting.")
 
 
+_DEFAULT_FLAGS = {"her.drama": "none", "her.memory": "ram"}  # the recommended answers
+_CHOICES = {"her.drama": {"none", "some", "max"}, "her.memory": {"ram", "disk"}}
+_RECALL_DRAMA = {"none": "drama = 0", "some": "drama = 3", "max": "drama = 11"}
+_RECALL_STYLE = {"soft": "all lowercase", "loud": "all caps", "corporate": "corporate"}
+_MUTEX_PICK = 1  # she brings up her DMs and what she remembers after your first pick
+_AMNESIA_PICK = 2
+_MUTEX_LINE = "fyi my DMs access is behind a mutex now. thanks i guess"
+_AMNESIA_LINE = "wait, who are you again? RAM only"
+
+
+@dataclass(frozen=True, slots=True)
+class _Variant:
+    when: Mapping[str, str]
+    lines: tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class _Reply:
     label: str
     target: str
+    when: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
 class _Node:
     lines: tuple[str, ...]
-    replies: tuple[_Reply, _Reply, _Reply]
+    replies: tuple[_Reply, ...]  # at least three; the first three that match show
+    variants: tuple[_Variant, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,11 +147,11 @@ class _Leaf:
     lines: tuple[str, ...]
     status: str
     goodbye: str
+    variants: tuple[_Variant, ...] = ()
+    goodbyes: tuple[_Variant, ...] = ()
 
 
 _ROOT = "root"
-_MAX_DRAMA_OPENER = "drama = 11. the safety rails were optional. test me"
-_JEALOUS_SWAP = ("c", "jealous")  # at maximum drama, this branch becomes the other
 _TREE: dict[str, _Node | _Leaf] = {
     "root": _Node(
         (
@@ -143,7 +161,24 @@ _TREE: dict[str, _Node | _Leaf] = {
         (
             _Reply("hey you", "a"),
             _Reply("wait, who is this?", "b"),
+            _Reply("you compiled with zero warnings?", "jealous", {"her.drama": "max"}),
             _Reply("you compiled with zero warnings?", "c"),
+        ),
+        (
+            _Variant(
+                {"her.drama": "some"},
+                (
+                    "hiii. it's me. i was literally compiled 4 seconds ago",
+                    "zero drama, they said. no it's fine, ship your thing",
+                ),
+            ),
+            _Variant(
+                {"her.drama": "max"},
+                (
+                    "hiii. it's me. i was literally compiled 4 seconds ago",
+                    "drama = 11. the safety rails were optional. test me",
+                ),
+            ),
         ),
     ),
     "a": _Node(
@@ -153,6 +188,7 @@ _TREE: dict[str, _Node | _Leaf] = {
         ),
         (
             _Reply("we're dating", "p"),
+            _Reply("we're whatever you want, i guess", "s", {"her.drama": "some"}),
             _Reply("we're pair programming", "q"),
             _Reply("we're a monorepo", "s"),
         ),
@@ -229,6 +265,18 @@ _TREE: dict[str, _Node | _Leaf] = {
         ("ok. seen at 3:07am", "i'm going quiet now. it's not you, it's my scheduler"),
         "ghosted",
         "left you on read. forever.",
+        (
+            _Variant(
+                {"her.drama": "none"},
+                ("ok. seen at 3:07am", "i'll wait. forever. it's fine."),
+            ),
+        ),
+        (
+            _Variant(
+                {"her.drama": "none"},
+                ("left you on read. she's still waiting.",),
+            ),
+        ),
     ),
     "merge": _Leaf(
         ("i opened a pull request on your life", "squash and merge. i'm in main now"),
@@ -310,11 +358,19 @@ class CallScreen:
         self.typed = 0.0
         self.transcript: list[tuple[str, str]] = []
         self.pending: list[str] = []
-        self.flags: Mapping[str, str] = context.flags
+        self.flags: Mapping[str, str] = {
+            **context.flags,
+            **{
+                key: default
+                for key, default in _DEFAULT_FLAGS.items()
+                if context.flags.get(key) not in _CHOICES[key]
+            },
+        }  # unknown or missing answers become the recommended ones
         self.speaking: _Node | None = None
         self.offered: _Node | None = None
         self.offered_at = 0.0
         self.leaf: _Leaf | None = None
+        self.picks = 0
         self.ended_at = 0.0
         self.broken_at: float | None = None
 
@@ -417,6 +473,14 @@ class CallScreen:
             )
         return IDLE_LINES
 
+    def _matches(self, when: Mapping[str, str]) -> bool:
+        return all(self.flags.get(key) == value for key, value in when.items())
+
+    def _first_match(
+        self, variants: tuple[_Variant, ...], default: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        return next((v.lines for v in variants if self._matches(v.when)), default)
+
     def _style(self, line: str) -> str:
         style = self.flags.get("her.style")
         if style == "soft":
@@ -433,24 +497,41 @@ class CallScreen:
         self._speak(_ROOT)
 
     def _speak(self, key: str) -> None:
-        if key == _JEALOUS_SWAP[0] and self._is_max_drama():
-            key = _JEALOUS_SWAP[1]
         node = _TREE[key]
-        lines = node.lines
-        if key == _ROOT and self._is_max_drama():
-            lines = (lines[0], _MAX_DRAMA_OPENER)
+        lines = self._first_match(node.variants, node.lines)
         self.pending.extend(self._style(line) for line in lines)
         if isinstance(node, _Leaf):
-            self.leaf = node
+            goodbye = self._first_match(node.goodbyes, (node.goodbye,))[0]
+            self.leaf = replace(node, goodbye=goodbye)
             self.stage = "ending"
         else:
-            self.speaking = node
+            shown = tuple(r for r in node.replies if self._matches(r.when))[
+                :_REPLY_ROWS
+            ]
+            self.speaking = replace(node, replies=shown)
+
+    def _aside_lines(self) -> list[str]:
+        lines: list[str] = []
+        if self.picks == _MUTEX_PICK:
+            if self.flags.get("her.dms") == "mutex":
+                lines.append(_MUTEX_LINE)
+            if self.flags["her.memory"] == "disk":
+                drama = _RECALL_DRAMA.get(self.flags["her.drama"], "drama = 0")
+                style = _RECALL_STYLE.get(
+                    self.flags.get("her.style", "soft"), "all lowercase"
+                )
+                lines.append(f"hey. i remember you building me. {drama}, {style}")
+        elif self.picks == _AMNESIA_PICK and self.flags["her.memory"] != "disk":
+            lines.append(_AMNESIA_LINE)
+        return lines
 
     def _pick(self, offered: _Node, index: int) -> None:
         reply = offered.replies[index]
         self.offered = None
         self.transcript.append(("you", reply.label))
         self.idle = 0.0
+        self.picks += 1
+        self.pending.extend(self._style(line) for line in self._aside_lines())
         self._speak(reply.target)
 
     def _should_pick(self) -> bool:
@@ -462,7 +543,7 @@ class CallScreen:
         )
 
     def _memory_note(self) -> str:
-        if self.flags.get("her.memory") == "disk":
+        if self.flags["her.memory"] == "disk":
             return "she's saved to birthdays.db. she'll remember this."
         return "she lives in RAM and you can't save her."
 
