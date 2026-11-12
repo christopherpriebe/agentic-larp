@@ -81,7 +81,7 @@ cats"` puts the agents to work on `cats.ts` and `Uber.tsx`.
 
 | Scenario | The agents are "building" | After you ship |
 | --- | --- | --- |
-| `girlfriend` | `face.cpp`, `heart.hpp`, `ring.cpp` | **call**: she calls. Answer, and type to her. |
+| `girlfriend` | `face.cpp`, `heart.hpp`, `ring.cpp` | **call**: she calls. Answer, then pick replies with `1`-`3` or type freely. The swarm asks how much drama, how she texts, and whether to persist her. |
 | `startup` | `Deck.tsx`, `valuation.ts`, `moat.ts` | **stonks**: your ticker, which only goes up |
 | `hacker` | `exploit.c`, `payload.asm`, `proxy.go` | **hacker**: scan, dump memory, crack a password, outrun the trace (mash keys to go faster) |
 | `prod` | `migrations/0042.sql`, `main.tf` | **deploy**: a global rollout; nobody gets paged |
