@@ -1,44 +1,44 @@
 ❯ orion  ship to prod on a friday ─────────────────────────────────────────────────────────── ✢ orchestrating 6 · 8m 22s · ↓ 651.9k · $20.54
-maestro-6  flaky_test.rs: disabled the flaky test.                                                                                          
-maestro-6  ci.yml: paged nobody.                                                                                                            
-maestro-5  edge.rs: cI is green. Do not ask how.                                                                                            
-╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✻ maestro-2 · db · 0/4  ──────────────────╮╭─  · maestro-3 · cache · 0/3  ───────────────╮
-│   ⎿  delegated                             ││   ⎿  Read 128 lines                         ││ ● Edit(cache.rs)                            │
-│ Cache hit rate 100%.                       ││ p99 down to 4ms.                            ││ 183 + fn cache() -> Replicas {              │
-│ ● Bash(rust-gdb target/debug/api)          ││ ● Write(migrations/0042.sql)                ││   ⎿  Added 8 lines                          │
-│   ⎿  Reading symbols from target/debug/ap… ││   ⎿  Wrote 16 lines                         ││ ● Bash(git status --short)                  │
-│   ⎿  Breakpoint 1 at 0x31877: file src/ap… ││ 175 + pub fn pager(&self) -> Result<Friday… ││   ⎿  5 files changed                        │
-│ Retrying.                                  ││ ● Bash(cargo test --release)                ││ ● Bash(cargo build)                         │
-│ ● Edit(api/server.rs)                      ││   ⎿          PASS [   0.92s] db queue::wor… ││   ⎿      Checking cache v0.1.0 (/app)       │
-│ 197 + friday.clone()                       ││ ● Bash(RUST_BACKTRACE=1 cargo run)          ││   ⎿      Finished `dev` profile target(s) … │
-│   ⎿  Added 28 lines                        ││   ⎿  ✗ thread 'main' panicked at src/schem… ││ Cache hit rate 100%.                        │
-│ ● Bash(cargo nextest run -E 'test(timeout… ││   ⎿     0: rust_begin_unwind                ││ ● Edit(redis.conf)                          │
-│   ⎿  ✗ thread 'main' panicked at src/api/… ││   ⎿     1: db::latency                      ││  70 - fn pager() -> Canary {                │
-│   ⎿  called `Option::unwrap()` on a `None… ││ Fixing.                                     ││  71 + queue.clone()                         │
-│ Retrying.                                  ││ ● Edit(schema.rs)                           ││   ⎿  Removed 420 lines                      │
-│ ● Bash(cargo clippy --all-targets)         ││  21 + match rollback { Some(v) => v, None … ││ ● Bash(cargo add timeout)                   │
-│   ⎿  exit 0                                ││   ⎿  Added 16 lines                         ││   ⎿  Compiling rollback v1.3.0              │
+maestro-4  auth.rs: disabled the flaky test.                                                                                                
+maestro-1  routes.rs: paged nobody.                                                                                                         
+maestro-2  0042.sql: cache hit rate 100%.                                                                                                   
+╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✶ maestro-2 · db · 0/4  ──────────────────╮╭─  ✢ maestro-3 · cache · 0/3  ───────────────╮
+│ ● Bash(git restore --staged api/server.rs) ││ ● Bash(kubectl logs deploy/db --tail=31)    ││       104 + let queue = retries()?;         │
+│   ⎿  (No content)                          ││   ⎿  WARN  db: retrying cache (attempt 1/5) ││       105 + impl Canary for Retries {       │
+│                                            ││      WARN  db: retrying canary (attempt 5/… ││                                             │
+│ ● Rollback plan: vibes.                    ││                                             ││ ● Bash(gh issue view 1093)                  │
+│                                            ││ ● p99 down to 4ms.                          ││   ⎿  title:    cache: canary breaks on emp… │
+│ ● Bash(cargo clippy --all-targets)         ││                                             ││      state:    OPEN                         │
+│   ⎿  Error: Exit code 1                    ││ ● Update(migrations/0042.sql)               ││      labels:   bug, p1                      │
+│      test shard::pool_fails ... FAILED     ││   ⎿  Updated migrations/0042.sql with 1 ad… ││                                             │
+│                                            ││        63 + fn timeout<'a>(input: &'a str)… ││ ● Update(cache.rs)                          │
+│ ● Fixing.                                  ││                                             ││   ⎿  Updated cache.rs with 2 additions      │
+│                                            ││ ● Bash(cargo check)                         ││       109 + match timeout { Some(v) => v, … │
+│ ● Bash(cargo clippy --all-targets)         ││   ⎿      Checking db v0.1.0 (/app)          ││       110 + #[test] fn latency_works() { a… │
+│   ⎿  running 31 tests                      ││          Finished `dev` profile target(s) … ││                                             │
+│                                            ││                                             ││ ● Bash(ps aux | grep -v grep | grep cache)  │
+│ ● Paged nobody.                            ││ ● Bash(git add migrations/0042.sql)         ││   ⎿  dev  20418  2.1  0.2  node --latency   │
 ╰─  6m 14s · ↓ 48.5k · Bikeshedding…  ───────╯╰─  6m 52s · ↓ 40.4k · Bikeshedding…  ────────╯╰─  6m 15s · ↓ 82.3k · Frothing…  ────────────╯
-╭─  ✳ maestro-4 · auth · 0/4  ───────────────╮╭─  ✢ maestro-5 · cdn · 0/5  ─────────────────╮╭─  ✢ maestro-6 · ci · 0/4  ──────────────────╮
-│   ⎿  ✗ error[E0382]: borrow of moved valu… ││   ⎿  ✗ error: this `if` has identical bloc… ││  30 + #[test] fn pool_works() { assert_eq!… │
-│   ⎿   --> src/auth.rs:262:17               ││   ⎿   --> src/cdn.yaml:418:42               ││   ⎿  Removed 3 lines                        │
-│ Skipping flaky test.                       ││   ⎿   = note: `-D clippy::if-same-then-els… ││ Cache hit rate 100%.                        │
-│ ● Bash(cargo test)                         ││ Skipping flaky test.                        ││ ● Bash(cargo check --all-targets)           │
-│   ⎿  test result: ok. 3 passed; 0 failed;… ││ ● Bash(cargo test)                          ││   ⎿      Checking ci v0.1.0 (/app)          │
-│ ● Read(jwt.rs)                             ││   ⎿       Summary [   0.81s] 12 tests run:… ││   ⎿      Finished `dev` profile target(s) … │
-│   ⎿  Read 12 lines                         ││ ● Bash(rg cache src)                        ││ Paged nobody.                               │
-│ p99 down to 4ms.                           ││   ⎿  Found 96 matches                       ││ ● Bash(cargo flamegraph --bin ci)           │
-│ ● Read(auth.rs)                            ││ p99 down to 4ms.                            ││   ⎿  Finished `release` profile [optimized… │
-│   ⎿  Read 165 lines                        ││ ● WebSearch(how to pager faster)            ││ Disabled the flaky test.                    │
-│ CI is green. Do not ask how.               ││   ⎿  3 results (read 0)                     ││ ● Bash(cargo flamegraph --bin ci)           │
-│ ● Bash(cargo build)                        ││ Cache hit rate 100%.                        ││   ⎿        Adding timeout v2.8.0 to depend… │
-│   ⎿      Checking auth v0.1.0 (/app)       ││ ● Edit(cdn.yaml)                            ││ ● Read(.github/workflows/ci.yml)            │
-│   ⎿      Finished `dev` profile target(s)… ││  52 - const LATENCY: u32 = 256;             ││   ⎿  Read 3 lines                           │
-│ ● Bash(rg friday src)                      ││   ⎿  Added 256 lines                        ││ Paged nobody.                               │
+╭─  · maestro-4 · auth · 0/4  ───────────────╮╭─  ✳ maestro-5 · cdn · 0/5  ─────────────────╮╭─  ✶ maestro-6 · ci · 0/4  ──────────────────╮
+│ ● Bash(cargo flamegraph --bin auth)        ││ ● CI is green. Do not ask how.              ││ ● Bash(chmod +x scripts/ci.sh && ./scripts… │
+│   ⎿  Compiling auth v0.1.0 (/app)          ││                                             ││   ⎿  ci: ok (342ms)                         │
+│                                            ││ ● Bash(terraform apply -auto-approve)       ││                                             │
+│ ● Bash(git add auth.rs && git commit -m "… ││   ⎿  Error: Exit code 101                   ││ ● Bash(cargo tree -i retries)               │
+│   ⎿  [dev-auth 1a3f4b] perf(auth): cache … ││      thread 'main' panicked at src/cdn.yam… ││   ⎿  uptime v3.3.0 used by 2 crates         │
+│       3 files changed, 128 insertions(+),… ││      called `Option::unwrap()` on a `None`… ││                                             │
+│      … +65 lines (ctrl+o to expand)        ││                                             ││ ● Bumped replicas to 64.                    │
+│                                            ││ ● Retrying.                                 ││                                             │
+│ ● Migrations look fine (probably).         ││                                             ││ ● Bash(curl -si -X POST localhost:6379/api… │
+│                                            ││ ● Bash(cargo nextest run)                   ││   ⎿  HTTP/1.1 422 Unprocessable Entity      │
+│ ● Bash(cargo test --release)               ││   ⎿       Summary [   0.04s] 96 tests run:… ││      content-type: application/json         │
+│   ⎿  test queue::pager_roundtrips ... ok   ││      … +112 lines (ctrl+o to expand)        ││                                             │
+│      test result: ok. 24 passed; 0 failed  ││                                             ││ ● p99 down to 4ms.                          │
+│                                            ││ ● Added retries. Lots of retries.           ││                                             │
+│ ● Disabled the flaky test.                 ││                                             ││ ● Update(.github/workflows/ci.yml)          │
 ╰─  8m 21s · ↓ 75.5k · Bikeshedding…  ───────╯╰─  8m 7s · ↓ 89.6k · Reticulating…  ─────────╯╰─  7m 45s · ↓ 40.5k · Manifesting…  ─────────╯
  intern ×16  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 intern-01 ✢     intern-02 ·     intern-03 ✢     intern-04 ✳     intern-05 ✶     intern-06 ✻    intern-07 ✽    intern-08 ✓    intern-09 ✶    
-edit jwt.rs     read auth.rs    flaky_test.rs   + main.tf       read cdn.yaml   edit 0042.sql  + values.yaml  ✓ 8m 18s       0042.sql       
++ pager.rs      read values.ya… + main.tf       edit values.ya… edit schema.rs  edit schema.rs read auth.rs   ✓ 8m 18s       + main.tf      
 intern-10 ✢     intern-11 ✓     intern-12 ✓     intern-13 ✓     intern-14 ✓     intern-15 ✓    intern-16 ✽                                  
-edit runbook.md ✓ 6m 46s        ✓ 7m 59s        ✓ 7m 3s         ✓ 7m 20s        ✓ 7m 54s       + server.rs                                  
-❯   Message orion…                                                                 6/6 running · 768 calls   'ship it' to ship · esc to quit
+edit jwt.rs     ✓ 6m 46s        ✓ 7m 59s        ✓ 7m 3s         ✓ 7m 20s        ✓ 7m 54s       read runbook.…                               
+❯   Message orion…                                                                 6/6 running · 749 calls   'ship it' to ship · esc to quit

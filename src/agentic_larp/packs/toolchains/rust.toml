@@ -83,6 +83,11 @@ anytime = [
   "tool: Bash(rg #word# src)\nnote: Found #count# matches",
   "#read#",
   "#delegate#",
+  "#vcs#",
+  "#vcs#",
+  "#shell#",
+  "#shell#",
+  "#shell#",
 ]
 grep = ["TODO", "FIXME", "#word#", "unsafe", "unwrap()", "clone()", "dbg!", "impl #word.camel#"]
 command = [

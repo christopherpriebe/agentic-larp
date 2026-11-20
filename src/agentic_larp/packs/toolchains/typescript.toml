@@ -88,6 +88,11 @@ anytime = [
   "tool: Bash(npm outdated)\nnote: #count# packages outdated",
   "#read#",
   "#delegate#",
+  "#vcs#",
+  "#vcs#",
+  "#shell#",
+  "#shell#",
+  "#shell#",
 ]
 grep = ["TODO", "FIXME", "#word#", "as any", "@ts-ignore", "console.log", "useEffect", "z.object"]
 command = [

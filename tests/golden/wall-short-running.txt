@@ -1,30 +1,30 @@
 ❯ orion  ship to prod on a friday ─────────────────────────────────────────────────────────── ✢ orchestrating 4 · 8m 22s · ↓ 521.8k · $16.44
-maestro-2  0042.sql: added retries. Lots of retries.                                                                                        
-maestro-2  schema.rs: bumped replicas to 64.                                                                                                
-maestro-3  redis.conf: cI is green. Do not ask how.                                                                                         
-╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✻ maestro-2 · db · 0/4  ──────────────────╮╭─  · maestro-3 · cache · 0/3  ───────────────╮
-│ 174 + impl Queue for Replicas {            ││ ● Write(schema.rs)                          ││ p99 down to 4ms.                            │
-│ 175 + shard.clone()                        ││   ⎿  Wrote 200 lines                        ││ ● Write(cache.rs)                           │
-│ 176 + impl Shard for Pager {               ││  60 + async fn rollback(client: &Client) -… ││   ⎿  Wrote 16 lines                         │
-│   ⎿  Added 8 lines                         ││ ● Bash(cargo update -p latency)             ││ 175 + pub fn pager(&self) -> Result<Friday… │
-│ ● Edit(api/routes.rs)                      ││   ⎿  Updating pager v1.1.0 -> v3.9.1        ││ ● Edit(redis.conf)                          │
-│  10 - #[tokio::main] async fn main() -> a… ││ Added retries. Lots of retries.             ││ 171 + let mut shard = HashMap::<String, Up… │
-│  11 - let pool = latency.iter().map(|x| x… ││ ● Bash(cargo test)                          ││   ⎿  Added 28 lines                         │
-│  12 + match canary { Some(v) => v, None =… ││   ⎿  exit 0                                 ││ ● Bash(cargo tree -i timeout)               │
-│   ⎿  Added 1024 lines                      ││ Bumped replicas to 64.                      ││   ⎿  pager v3.3.0 used by 2 crates          │
-╰─  6m 14s · ↓ 48.5k · Bikeshedding…  ───────╯╰─  6m 52s · ↓ 40.4k · Bikeshedding…  ────────╯╰─  6m 15s · ↓ 82.3k · Simmering…  ───────────╯
-╭─  ✳ maestro-4 · auth · 0/4  ───────────────╮                                                                                              
-│   ⎿      Checking auth v0.1.0 (/app)       │                                                                                              
-│   ⎿      Finished `dev` profile target(s)… │                                                                                              
-│ Cache hit rate 100%.                       │                                                                                              
-│ ● Edit(auth.rs)                            │                                                                                              
-│  87 + use std::sync::{Arc, Mutex};         │                                                                                              
-│  88 + let canary = rollback.iter().map(|x… │                                                                                              
-│   ⎿  Added 3 lines                         │                                                                                              
-│ ● Grep(FIXME)                              │                                                                                              
-│   ⎿  Found 8 matches                       │                                                                                              
-╰─  8m 21s · ↓ 75.5k · Bikeshedding…  ───────╯                                                                                              
+maestro-4  jwt.rs: disabled the flaky test.                                                                                                 
+maestro-2  0042.sql: cache hit rate 100%.                                                                                                   
+maestro-1  server.rs: paged nobody.                                                                                                         
+╭─  · maestro-1 · api · 0/4  ────────────────╮╭─  ✶ maestro-2 · db · 0/4  ──────────────────╮╭─  ✢ maestro-3 · cache · 0/3  ───────────────╮
+│ ● Update(api/server.rs)                    ││        99 - #[derive(Replicas)]             ││ ● Retrying.                                 │
+│   ⎿  Updated api/server.rs with 2 removals ││       100 - #[test] fn shard_works() { ass… ││                                             │
+│       106 - use std::sync::{Arc, Mutex};   ││                                             ││ ● Bash(cargo test)                          │
+│       107 - pub fn rollback(&self) -> Res… ││ ● Disabled the flaky test.                  ││   ⎿  test result: ok. 96 passed; 0 failed;… │
+│                                            ││                                             ││                                             │
+│ ● Paged nobody.                            ││ ● Bash(cargo check --all-targets)           ││ ● Bash(cargo nextest run)                   │
+│                                            ││   ⎿       Running `target/debug/db`         ││   ⎿  test result: ok. 31 passed; 0 failed;… │
+│ ● Update(api/server.rs)                    ││                                             ││                                             │
+│                                            ││ ● Cache hit rate 100%.                      ││ ● CI is green. Do not ask how.              │
+╰─  6m 14s · ↓ 48.5k · Bikeshedding…  ───────╯╰─  6m 52s · ↓ 40.4k · Bikeshedding…  ────────╯╰─  6m 15s · ↓ 82.3k · Frothing…  ────────────╯
+╭─  · maestro-4 · auth · 0/4  ───────────────╮                                                                                              
+│       105 + impl Canary for Retries {      │                                                                                              
+│                                            │                                                                                              
+│ ● Bash(cargo flamegraph --bin auth)        │                                                                                              
+│   ⎿        Adding timeout v2.8.0 to depen… │                                                                                              
+│                                            │                                                                                              
+│ ● Disabled the flaky test.                 │                                                                                              
+│                                            │                                                                                              
+│ ● Bash(cargo nextest run)                  │                                                                                              
+│   ⎿  test uptime::works ... ok             │                                                                                              
+╰─  8m 21s · ↓ 75.5k · Hallucinating…  ──────╯                                                                                              
  intern ×16  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 intern-01 ✓     intern-02 ✓     intern-03 ✢     intern-04 ✳     intern-05 ✶     intern-06 ✻    intern-07 ✽    intern-08 ✓    intern-09 ✶    
-✓ 8m 21s        ✓ 7m 7s         read auth.rs    + edge.rs       edit 0042.sql   read edge.rs   flaky_test.rs  ✓ 7m 30s       ~ runbook.md   
-❯   Message orion…                                                                 4/4 running · 670 calls   'ship it' to ship · esc to quit
+✓ 8m 21s        ✓ 7m 7s         + ci.yml        + cache.rs      + routes.rs     edit 0042.sql  ~ runbook.md   ✓ 7m 30s       ~ auth.rs      
+❯   Message orion…                                                                 4/4 running · 660 calls   'ship it' to ship · esc to quit

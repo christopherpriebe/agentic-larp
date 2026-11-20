@@ -89,11 +89,11 @@ def test_render_entry_fills_exactly_one_line(entry: LogLine) -> None:
 def test_render_entry_formats_tool_calls_and_diffs() -> None:
     assert (
         render_entry(LogLine("tool", "tts.cpp", "Edit"), 20).plain.rstrip()
-        == "● Edit(tts.cpp)"
+        == "● Update(tts.cpp)"
     )
     assert (
-        render_entry(LogLine("diff", "rate = 165;", "+", 171), 20).plain.rstrip()
-        == "171 + rate = 165;"
+        render_entry(LogLine("diff", "rate = 165;", "+", 171), 30).plain.rstrip()
+        == "      171 + rate = 165;"
     )
 
 

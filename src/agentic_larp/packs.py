@@ -16,6 +16,7 @@ from agentic_larp._packs import (
     load_scenario,
 )
 from agentic_larp._scenarios import generic_scenario, pick_scenario, task_words
+from agentic_larp._transcript import as_transcript
 
 __all__ = [
     "BOUND_SYMBOLS",
@@ -24,6 +25,7 @@ __all__ = [
     "TOOLCHAINS",
     "Grammar",
     "Scenario",
+    "as_transcript",
     "base_grammar",
     "default_pack_dirs",
     "discover_scenarios",

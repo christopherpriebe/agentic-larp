@@ -91,6 +91,7 @@ API = {
         "task_words",
         "base_grammar",
         "parse_activity",
+        "as_transcript",
         "REQUIRED_SYMBOLS",
         "BOUND_SYMBOLS",
     },

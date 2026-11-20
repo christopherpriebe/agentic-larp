@@ -193,3 +193,17 @@ heaviest = "my_package.policies:Heaviest"
 Then run `larp --policy heaviest`. A plugin that fails to load prints a
 warning and is skipped; choosing something that is not a policy is a usage
 error.
+
+## How logs are shaped
+
+Pack activity is parsed by `parse_activity` and then reshaped by
+`as_transcript` into Claude Code form: an edit gets an `Updated f with N
+additions` summary and renumbered diffs, a write previews its lines as plain
+code, a failing `fail:` result becomes `Error: Exit code N` (Bash) or a
+one-line `Error:` (other tools), and long Bash output may collapse to
+`… +N lines (ctrl+o to expand)`. Write `fail:` lines as before; nothing in
+your pack changes.
+
+The base pack defines workflow rules `investigate`, `fix_loop`, `red_green`,
+`edit_and_commit`, `commit`, `push`, `vcs`, and `shell`. A pack may override
+any of them like any other rule.

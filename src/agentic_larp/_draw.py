@@ -28,42 +28,71 @@ def spinner(now: float, offset: float = 0.0) -> str:
     return SPINNER[int((now + offset) * 10) % len(SPINNER)]
 
 
-def render_entry(entry: LogLine, width: int) -> Text:
+_TOOL_NAMES = {"Edit": "Update", "Grep": "Search", "WebSearch": "Web Search"}
+
+
+def _tool_argument(entry: LogLine) -> str:
+    if entry.label == "Grep":
+        return f'pattern: "{entry.text}"'
+    if entry.label == "WebSearch":
+        return f'"{entry.text}"'
+    return entry.text
+
+
+def render_entry(
+    entry: LogLine, width: int, *, continued: bool = False, failed: bool = False
+) -> Text:
     """Render one log line at exactly the given width.
 
     Args:
         entry: A line from an agent's log.
         width: Cells available.
+        continued: Whether a result follows other output, so it hangs under
+            the first line instead of getting its own ``⎿`` marker.
+        failed: Whether a tool call's bullet is red because it failed.
 
     Returns:
         A single, padded line.
     """
     if entry.kind == "tool":
-        line = Text.assemble(
-            ("● ", "green"),
-            (entry.label, "bold"),
-            ("(", "dim"),
-            entry.text,
-            (")", "dim"),
-        )
+        name = _TOOL_NAMES.get(entry.label, entry.label)
+        line = Text.assemble(("● ", "red" if failed else "green"), (name, "bold"))
+        if entry.text:
+            line.append("(", style="dim")
+            line.append(_tool_argument(entry))
+            line.append(")", style="dim")
     elif entry.kind == "diff":
         line = Text(
-            f"{entry.number:>3} {entry.label} {entry.text}",
-            style=_DIFF_STYLES[entry.label],
+            f"     {entry.number:>4} {entry.label} {entry.text}",
+            style=_DIFF_STYLES.get(entry.label, "dim"),
         )
     elif entry.kind == "result":
-        line = Text.assemble(("  ⎿  ", "dim"), (entry.text, entry.label))
+        prefix = "     " if continued else "  ⎿  "
+        line = Text.assemble((prefix, "dim"), (entry.text, entry.label))
     elif entry.kind == "done":
         line = Text(entry.text, style="bold green")
     else:
-        line = Text(entry.text, style="bold white")
+        line = Text.assemble(("● ", "white"), entry.text)
     line.no_wrap = True
     line.truncate(width, overflow="ellipsis", pad=True)
     return line
 
 
+def _has_failed(entries: list[LogLine], index: int) -> bool:
+    for entry in entries[index + 1 :]:
+        if entry.kind in {"tool", "quip", "done"}:
+            return False
+        if entry.kind == "result" and entry.label == "red":
+            return True
+    return False
+
+
+def _is_turn(entry: LogLine) -> bool:
+    return entry.kind in {"tool", "quip", "done"}
+
+
 class AgentBody:
-    """The tail of an agent's log, one line per entry, fitted to its panel."""
+    """The tail of an agent's log, fitted to its panel like a transcript."""
 
     def __init__(self, agent: AgentView) -> None:
         self.agent = agent
@@ -72,7 +101,25 @@ class AgentBody:
         self, console: Console, options: ConsoleOptions
     ) -> Iterator[Text]:
         height = options.height or PANEL_MIN_HEIGHT
-        entries = list(self.agent.log)[-height:]
-        lines = [Text("")] * (height - len(entries))
-        lines += [render_entry(entry, options.max_width) for entry in entries]
+        log = list(self.agent.log)
+        rows: list[Text] = []
+        for index in range(len(log)):
+            entry = log[index]
+            previous = log[index - 1] if index else None
+            if _is_turn(entry) and index:
+                rows.append(Text(""))
+            rows.append(
+                render_entry(
+                    entry,
+                    options.max_width,
+                    continued=entry.kind == "result"
+                    and previous is not None
+                    and previous.kind in {"result", "diff"},
+                    failed=entry.kind == "tool" and _has_failed(log, index),
+                )
+            )
+        rows = rows[-height:]
+        if len(rows) == height and not rows[0].plain.strip():
+            rows = [*rows[1:], Text("")]
+        lines = [Text("")] * (height - len(rows)) + rows
         yield Text("\n", no_wrap=True).join(lines)

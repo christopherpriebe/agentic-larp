@@ -17,6 +17,15 @@ build_command = [
   "uv run alembic upgrade head",
   "uv run uvicorn #area#.main:app --reload",
   "python -m cProfile -s cumtime src/#file#",
+  "uv tree --depth 1",
+  "uv pip list --outdated",
+  "uvx pip-audit",
+  "pre-commit run --all-files",
+  "alembic revision --autogenerate -m 'add #word#'",
+  "py-spy top --pid #pid#",
+  "hyperfine 'uv run python -m #area#'",
+  "python -c 'import #area#; print(#area#.__version__)'",
+  "docker build -t #area#:dev .",
 ]
 test_command = [
   { text = "#command#", weight = 2 },
@@ -86,6 +95,11 @@ anytime = [
   "tool: Bash(rg #word# src)\nnote: Found #count# matches",
   "#read#",
   "#delegate#",
+  "#vcs#",
+  "#vcs#",
+  "#shell#",
+  "#shell#",
+  "#shell#",
 ]
 grep = ["TODO", "FIXME", "#word#", "# type: ignore", "# noqa", "breakpoint()", "print(", "Any"]
 command = [
