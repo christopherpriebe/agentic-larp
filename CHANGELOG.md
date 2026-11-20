@@ -8,6 +8,17 @@ plugins can rely on.
 
 ## [Unreleased]
 
+### Changed
+
+- Agent panels read like Claude Code transcripts: `Update(...)` summaries with
+  renumbered diffs, `Error: Exit code` failures, collapsed long output,
+  `Update Todos` blocks, and blank lines between turns. `as_transcript` in
+  `agentic_larp.packs` does the reshaping; `render_entry` gained keyword-only
+  `continued` and `failed`.
+- New base rules `investigate`, `fix_loop`, `red_green`, `edit_and_commit`,
+  `commit`, `push`, `vcs`, and `shell` give agents real workflows; packs can
+  override them.
+
 ### Fixed
 
 - The opening plan no longer looks frozen: agents are dispatched one by one

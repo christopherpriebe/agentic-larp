@@ -37,6 +37,11 @@ anytime = [
   "tool: Bash(wc -l src/#area#/*.cpp)\nnote: #count# total",
   "#read#",
   "#delegate#",
+  "#vcs#",
+  "#vcs#",
+  "#shell#",
+  "#shell#",
+  "#shell#",
 ]
 
 build_command = [

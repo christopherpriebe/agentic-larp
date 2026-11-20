@@ -2,6 +2,7 @@
 
 import math
 import random
+import re
 from collections import deque
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ from agentic_larp._log import LogLine
 from agentic_larp._packs import Scenario
 from agentic_larp._policies import ChoicePolicy, RandomPolicy
 from agentic_larp._questions import Option, Question
+from agentic_larp._transcript import as_transcript
 
 SPINNER_VERBS = (
     "Frothing",
@@ -71,6 +73,10 @@ _CREEP_SPREAD = 0.25
 _TODO_SHARE = (0.5, 1.5)
 _MIN_IDLE = 0.5
 _MAX_IDLE = 1.7
+_COLLAPSE_CHANCE = 0.35
+_COLLAPSE_LINES = (3, 180)
+_TODO_WINDOW = 5
+_TODOS_BEFORE = 2
 
 
 DEFAULT_LOG_LENGTH = 120
@@ -284,7 +290,8 @@ class Agent:
         files: Files it touches.
         spawn_offset: Seconds of run time at which it joined.
         log: Lines already shown in its panel.
-        queue: Lines waiting to be streamed into the log.
+        queue: Chunks of lines waiting to be streamed into the log; a chunk
+            lands in one tick.
         tokens: Tokens it has pretended to use.
         calls: Tool calls it has pretended to make.
         verb: Its current spinner verb.
@@ -308,7 +315,7 @@ class Agent:
     log: deque[LogLine] = field(
         default_factory=lambda: deque(maxlen=DEFAULT_LOG_LENGTH)
     )
-    queue: deque[LogLine] = field(default_factory=deque)
+    queue: deque[tuple[LogLine, ...]] = field(default_factory=deque)
     tokens: float = 0.0
     calls: int = 0
     verb: str = "Frothing"
@@ -322,6 +329,7 @@ class Agent:
     todo_average: float = 1.0
     idle: float = 0.0
     idle_target: float = 1.0
+    is_todo_update_due: bool = False
 
 
 @dataclass(slots=True)
@@ -412,7 +420,8 @@ class Sim:
             for _ in range(self.rng.randint(3, 6)):
                 self._emit(agent)
             while agent.queue:
-                self._show(agent, agent.queue.popleft())
+                for line in agent.queue.popleft():
+                    self._show(agent, line)
 
     # ---- totals --------------------------------------------------------------
     @property
@@ -719,9 +728,12 @@ class Sim:
         if self._advance_todos(agent):
             return
         if agent.queue and rng.random() < dt * 9 * boost * hurry:
-            self._show(agent, agent.queue.popleft())
+            chunk = agent.queue.popleft()
+            for line in chunk:
+                self._show(agent, line)
             agent.last_active = self.now
-            agent.calls += 1
+            if chunk[0].kind in {"tool", "quip"}:
+                agent.calls += 1
         elif not agent.queue:
             is_rushed = agent.finish_at is not None and self.now >= agent.finish_at
             if is_rushed:
@@ -771,20 +783,28 @@ class Sim:
         )
 
     def _draft_todos(self, agent: Agent, seconds: list[float]) -> list[Todo]:
+        """Draft todos, rerolling text the agent's list already has.
+
+        Returns:
+            The new todos.
+        """
         rng = self.rng
         grammar = self._grammar_for(agent)
-        return [
-            Todo(
-                grammar.expand(
+        taken = {todo.text for todo in agent.todos}
+        todos: list[Todo] = []
+        for amount in seconds:
+            for _ in range(_REROLLS):
+                text = grammar.expand(
                     "todo",
                     rng,
                     self._bindings(agent, rng.choice(agent.files), agent.area),
                     policy=self._policies[agent.name],
-                ),
-                amount,
-            )
-            for amount in seconds
-        ]
+                )
+                if text not in taken:
+                    break
+            taken.add(text)
+            todos.append(Todo(text, amount))
+        return todos
 
     def _advance_todos(self, agent: Agent) -> bool:
         """Complete the todos the agent's work has paid for.
@@ -792,19 +812,65 @@ class Sim:
         Returns:
             Whether the agent finished.
         """
+        is_progressed = False
         while agent.todos_done < len(agent.todos):
             due = sum(todo.seconds for todo in agent.todos[: agent.todos_done + 1])
             if agent.work < due:
-                return False
+                break
             agent.todos_done += 1
+            is_progressed = True
             self.events.publish(TodoDone(agent, agent.todos[agent.todos_done - 1]))
-            if agent.todos_done < len(agent.todos):
-                continue
-            if self.mode is RunMode.CONVERGE:
-                self._finish(agent)
-                return True
-            self._creep(agent)
+            if agent.todos_done >= len(agent.todos):
+                if self.mode is RunMode.CONVERGE:
+                    self._finish(agent)
+                    return True
+                self._creep(agent)
+        if is_progressed:
+            self._queue_todo_update(agent)
         return False
+
+    def _queue_todo_update(self, agent: Agent, *, is_forced: bool = False) -> None:
+        """Queue the 'Update Todos' block Claude Code prints after a check-off."""
+        start = max(0, agent.todos_done - _TODOS_BEFORE)
+        window = agent.todos[start : start + _TODO_WINDOW]
+        rows: list[LogLine] = []
+        for offset, todo in enumerate(window, start=start):
+            if offset < agent.todos_done:
+                rows.append(LogLine("result", f"☒ {todo.text}", "dim strike"))
+            elif offset == agent.todos_done:
+                rows.append(LogLine("result", f"☐ {todo.text}", "bold"))
+            else:
+                rows.append(LogLine("result", f"☐ {todo.text}", ""))
+        header = (LogLine("tool", "", "Update Todos"),)
+        queue = agent.queue
+        if header in queue:
+            # an older update is still waiting; replace it with the latest state
+            position = queue.index(header)
+            del queue[position]
+            if position < len(queue) and queue[position][0].kind == "result":
+                del queue[position]
+        elif (
+            agent.log
+            and agent.log[-1] == header[0]
+            and queue
+            and queue[0][0].kind == "result"
+        ):
+            # its header is showing and its list is waiting; update the list
+            queue[0] = tuple(rows)
+            return
+        last_tool = next(
+            (line for line in reversed(agent.log) if line.kind == "tool"),
+            None,
+        )
+        if (
+            not is_forced
+            and not any(chunk[0].kind == "tool" for chunk in queue)
+            and last_tool == header[0]
+        ):
+            agent.is_todo_update_due = True  # not right after the last update
+            return
+        queue.append(header)
+        queue.append(tuple(rows))
 
     def _creep(self, agent: Agent) -> None:
         rng = self.rng
@@ -833,7 +899,7 @@ class Sim:
         bindings = self._bindings(agent, file, agent.area)
         if self.pending_user and rng.random() < _USER_REPLY_CHANCE:
             text = self.pending_user.pop(0)
-            queue.append(LogLine("quip", f'Re: "{text[:40]}". On it.'))
+            queue.append((LogLine("quip", f'Re: "{text[:40]}". On it.'),))
         first_line = rng.randint(4, 220)
         for _ in range(_REROLLS):
             lines = parse_activity(
@@ -846,16 +912,56 @@ class Sim:
                 break
         else:
             lines = [line for line in lines if line.label != "Task"]
-        queue.extend(lines)
+        queue.extend(self._chunk(as_transcript(lines)))
+        if agent.is_todo_update_due:
+            agent.is_todo_update_due = False
+            self._queue_todo_update(agent, is_forced=True)
         if rng.random() < _QUIP_CHANCE:
             quip = grammar.expand(
                 "quip", rng, bindings, policy=self._policies[agent.name]
             )
-            queue.append(LogLine("quip", quip))
+            queue.append((LogLine("quip", quip),))
             short = file.rsplit("/", 1)[-1]
             self.report(agent.name, f"{short}: {_lower_first(quip)}")
 
+    def _chunk(self, lines: list[LogLine]) -> list[tuple[LogLine, ...]]:
+        """Split a transcript into chunks: a tool alone, then its output together.
+
+        Returns:
+            The chunks, in order.
+        """
+        rng = self.rng
+        chunks: list[tuple[LogLine, ...]] = []
+        body: list[LogLine] = []
+        shell = False
+
+        def close() -> None:
+            if not body:
+                return
+            has_output = any(line.kind == "result" for line in body)
+            if shell and has_output and rng.random() < _COLLAPSE_CHANCE:
+                hidden = rng.randint(*_COLLAPSE_LINES)
+                text = f"… +{hidden} lines (ctrl+o to expand)"
+                body.append(LogLine("result", text, "dim"))
+            chunks.append(tuple(body))
+            body.clear()
+
+        for line in lines:
+            if line.kind in {"tool", "quip"}:
+                close()
+                chunks.append((line,))
+                shell = line.kind == "tool" and line.label == "Bash"
+            else:
+                body.append(line)
+        close()
+        return chunks
+
     def _finish(self, agent: Agent) -> None:
+        is_dangling = agent.log and agent.log[-1].kind == "tool" and agent.queue
+        if is_dangling and agent.queue[0][0].kind not in {"tool", "quip"}:
+            # never end the panel on a tool line with no output
+            for line in agent.queue.popleft():
+                self._show(agent, line)
         grammar = self._grammar_for(agent)
         file = self.rng.choice(agent.files)
         final = grammar.expand(
@@ -896,6 +1002,9 @@ class Sim:
 
 
 def _lower_first(text: str) -> str:
+    first_word = text.split(" ", 1)[0]
+    if any(char.isupper() for char in first_word[1:]) or re.match(r"I\b", text):
+        return text
     return text[:1].lower() + text[1:]
 
 

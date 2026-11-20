@@ -7,22 +7,27 @@
 # test and debug, plus "anytime" odds and ends. `action` chooses among them;
 # the "phased" policy walks them in a realistic rhythm.
 action = [
-  { text = "#explore#", weight = 14 },
-  { text = "#implement#", weight = 36 },
-  { text = "#build#", weight = 12 },
-  { text = "#test#", weight = 14 },
-  { text = "#debug#", weight = 8 },
-  { text = "#anytime#", weight = 16 },
+  { text = "#explore#", weight = 18 },
+  { text = "#implement#", weight = 32 },
+  { text = "#build#", weight = 9 },
+  { text = "#test#", weight = 11 },
+  { text = "#debug#", weight = 7 },
+  { text = "#anytime#", weight = 23 },
 ]
 
 explore = [
   { text = "#read#", weight = 10 },
   { text = "#grep_call#", weight = 6 },
   { text = "#search#", weight = 4 },
+  { text = "#investigate#", weight = 8 },
+  { text = "#shell#", weight = 14 },
 ]
 implement = [
   { text = "#edit#", weight = 36 },
   { text = "#write#", weight = 8 },
+  { text = "#fix_loop#", weight = 10 },
+  { text = "#red_green#", weight = 6 },
+  { text = "#edit_and_commit#", weight = 6 },
 ]
 build = "tool: Bash(#build_command#)\nok: #build_result#"
 test = [
@@ -40,6 +45,9 @@ anytime = [
   "tool: Bash(rg #word#)\nnote: Found #count# matches",
   "#read#",
   "#delegate#",
+  "#vcs#",
+  "#shell#",
+  "#shell#",
 ]
 
 edit = "tool: Edit(#file#)\n#diffs#\nnote: #edit_note#"
@@ -127,4 +135,116 @@ todo = [
   "Migrate #file# to the new #word#",
   "Profile and optimize #area#",
   "Clean up TODOs in #file#",
+]
+
+# ---- Workflows ---------------------------------------------------------------
+# Several turns on one file, the way real sessions go: look around, read,
+# change, test, fix, commit. #file# and #n# stay the same for a whole action,
+# so every turn in a workflow is about the same file.
+investigate = [
+  "#grep_call#\n#read#\ntool: Bash(git log --oneline -#small# -- #file#)\nnote: #sha# #commit_subject#\nnote: #sha# #commit_subject#\nnote: #sha# #commit_subject#",
+  "tool: Bash(git blame -L #line#,+#small# #file#)\nnote: #sha# (#author# #days# days ago #line#) #code#\nnote: #sha# (#author# #days# days ago #line#) #code#\n#read#",
+  "tool: Bash(rg -n \"#grep#\" src/#area#)\nnote: #file#:#line#:#code#\nnote: #file#:#line#:#code#\n#read#",
+  "tool: Bash(git log -p -#small# --stat -- #file#)\nnote: commit #sha##hex##hex##hex#\nnote: Author: #author# <#author#@users.noreply.github.com>\nnote:     #commit_subject#\n#read#",
+  "#read#\ntool: Bash(rg -l #word# src | head)\nnote: src/#file#\nnote: src/#area#/mod#small#\n#read#",
+]
+fix_loop = [
+  "#read#\n#edit#\n#test#",
+  "#grep_call#\n#read#\n#edit#\n#build#",
+  "#read#\n#edit#\n#build#\n#test#",
+]
+red_green = [
+  "#read#\n#debug#\n#test#",
+  "#edit#\n#debug#\n#test#\n#commit#",
+]
+edit_and_commit = [
+  "#edit#\n#test#\n#commit#",
+  "#read#\n#edit#\n#test#\n#commit#\n#push#",
+  "#edit#\n#build#\n#commit#",
+]
+commit = [
+  "tool: Bash(git add #file#)\nnote: (No content)\ntool: Bash(git commit -m \"#commit_subject#\")\nnote: [#branch# #sha#] #commit_subject#\nnote:  1 file changed, #count# insertions(+), #few# deletions(-)",
+  "tool: Bash(git add #file# && git commit -m \"#commit_subject#\")\nnote: [#branch# #sha#] #commit_subject#\nnote:  #files_changed# files changed, #count# insertions(+), #few# deletions(-)",
+]
+push = [
+  "tool: Bash(git push -u origin #branch#)\nnote: To github.com:acme/#repo#.git\nnote:  * [new branch]      #branch# -> #branch#\nnote: branch '#branch#' set up to track 'origin/#branch#'.",
+  "tool: Bash(git push)\nnote: To github.com:acme/#repo#.git\nnote:    #sha#..#sha#  #branch# -> #branch#",
+  "tool: Bash(gh pr create --fill --base dev)\nnote: Creating pull request for #branch# into dev in acme/#repo#\nok: https://github.com/acme/#repo#/pull/#pr#",
+]
+vcs = [
+  "#commit#",
+  "#push#",
+  "tool: Bash(git status)\nnote: On branch #branch#\nnote: Changes not staged for commit:\nnote:         modified:   #file#",
+  "tool: Bash(git diff #file#)\nnote: @@ -#line#,#small# +#line#,#small# @@\nnote: -#code#\nnote: +#code#",
+  "tool: Bash(git log --oneline -5)\nnote: #sha# #commit_subject#\nnote: #sha# #commit_subject#\nnote: #sha# Merge pull request ##pr# from acme/#branch#",
+  "tool: Bash(git checkout -b #branch#)\nnote: Switched to a new branch '#branch#'",
+  "tool: Bash(git stash && git pull --rebase origin dev && git stash pop)\nnote: Saved working directory and index state WIP on #branch#: #sha# #commit_subject#\nnote: Successfully rebased and updated refs/heads/#branch#.",
+  "tool: Bash(git fetch origin && git rebase origin/dev)\nnote: Successfully rebased and updated refs/heads/#branch#.",
+  "tool: Bash(gh pr checks #pr#)\nnote: ✓ lint      #secs#s\nnote: ✓ test      #secs#s\nnote: * deploy    pending",
+  "tool: Bash(gh pr view #pr# --comments)\nnote: #author# requested changes\nnote:   nit: rename #word# to #word#?",
+  "tool: Bash(gh run view --log-failed)\nnote: #area#    Run tests    Process completed with exit code 1.",
+  "tool: Bash(gh issue view #pr#)\nnote: title:    #area#: #word# breaks on empty input\nnote: state:    OPEN\nnote: labels:   bug, p1",
+  "tool: Bash(git restore --staged #file#)\nnote: (No content)",
+]
+shell = [
+  "tool: Bash(ls src/#area#)\nnote: #file#  mod#small#  tests  README.md",
+  "tool: Bash(wc -l #file#)\nnote:      #count# #file#",
+  "tool: Bash(sed -n '#line#,+#small#p' #file#)\nnote: #code#\nnote: #code#\nnote: #code#",
+  "tool: Bash(head -n 30 #file#)\nnote: #code#\nnote: #code#",
+  "tool: Bash(find . -name '*#area#*' -not -path './.git/*' | head)\nnote: ./#file#\nnote: ./docs/#area#.md\nnote: ./tests/#area#",
+  "tool: Bash(rg -l #word# | xargs wc -l | tail -1)\nnote:     #count# total",
+  "tool: Bash(cat .env.example)\nnote: DATABASE_URL=postgres://localhost:5432/#area#\nnote: REDIS_URL=redis://localhost:6379/0\nnote: LOG_LEVEL=debug",
+  "tool: Bash(curl -s localhost:#port#/healthz | jq .)\nnote: {\nnote:   \"status\": \"ok\",\nnote:   \"uptime_s\": #count#\nnote: }",
+  "tool: Bash(curl -si -X POST localhost:#port#/api/#area# -d '{}')\nnote: HTTP/1.1 422 Unprocessable Entity\nnote: content-type: application/json",
+  "tool: Bash(docker compose up -d #service#)\nnote:  ✔ Container app-#service#-1  Started",
+  "tool: Bash(docker compose ps)\nnote: NAME              STATUS          PORTS\nnote: app-#service#-1   Up #small# minutes   0.0.0.0:#port#->#port#/tcp",
+  "tool: Bash(docker compose logs --tail=#count# #service#)\nnote: #service#-1  | #log_line#\nnote: #service#-1  | #log_line#\nnote: #service#-1  | #log_line#",
+  "tool: Bash(lsof -i :#port#)\nnote: COMMAND   PID USER   FD   TYPE  NODE NAME\nnote: #process# #pid# dev   2#small#u  IPv4  TCP *:#port# (LISTEN)",
+  "tool: Bash(kill #pid#)\nnote: (No content)",
+  "tool: Bash(ps aux | grep -v grep | grep #process#)\nnote: dev  #pid#  #small#.#small#  0.#small#  #process# --#word#",
+  "tool: Bash(tail -n #count# logs/#area#.log)\nnote: #log_line#\nnote: #log_line#\nnote: #log_line#",
+  "tool: Bash(grep -c ERROR logs/#area#.log)\nnote: #count#",
+  "tool: Bash(kubectl get pods -n #area#)\nnote: NAME                     READY   STATUS    RESTARTS   AGE\nnote: #area#-#hex#f#small#c-x#hex#q   1/1     Running   #few#          #small#m",
+  "tool: Bash(kubectl logs deploy/#area# --tail=#count#)\nnote: #log_line#\nnote: #log_line#",
+  "tool: Bash(kubectl rollout status deploy/#area#)\nok: deployment \"#area#\" successfully rolled out",
+  "tool: Bash(psql $DATABASE_URL -c 'select count(*) from #word#s')\nnote:  count\nnote: -------\nnote:   #count#\nnote: (1 row)",
+  "tool: Bash(redis-cli info stats | grep keyspace)\nnote: keyspace_hits:#count##count#\nnote: keyspace_misses:#count#",
+  "tool: Bash(time #test_command#)\nok: #result#\nnote: real    0m#secs#s",
+  "tool: Bash(env | grep -i #area#)\nnote: #area.upper#_URL=http://localhost:#port#\nnote: #area.upper#_TIMEOUT_MS=#ms#",
+  "tool: Bash(du -sh .git)\nnote: #count#M    .git",
+  "tool: Bash(make -n deploy)\nnote: docker build -t acme/#repo#:#sha# .\nnote: kubectl set image deploy/#area# #area#=acme/#repo#:#sha#",
+  "tool: Bash(jq '.#word#' config/#area#.json)\nnote: {\nnote:   \"enabled\": true,\nnote:   \"ttl\": #count#\nnote: }",
+  "tool: Bash(openssl rand -hex 16)\nnote: #hex##sha##hex##sha##hex#",
+  "tool: Bash(date -u +%Y-%m-%dT%H:%M:%SZ)\nnote: 2026-11-11T0#small#:#small#2:#small#7Z",
+  "tool: Bash(mkdir -p src/#area#/#word# && touch src/#area#/#word#/.keep)\nnote: (No content)",
+  "tool: Bash(chmod +x scripts/#area#.sh && ./scripts/#area#.sh)\nok: #area#: ok (#ms#ms)",
+  "tool: Bash(sleep #small# && curl -s localhost:#port#/metrics | grep #word#)\nnote: #word#_total #count#\nnote: #word#_errors_total 0",
+]
+
+sha = ["#hex#c#small##hex#f", "#small#a#hex##small#e", "e#hex##small#d#small#", "#hex##hex##small#b", "f#small##hex#a#small#"]
+author = ["mkowalski", "jlee", "dependabot[bot]", "priya-s", "tomhq", "renovate[bot]"]
+days = ["2", "5", "11", "23", "41", "97", "212", "389"]
+branch = ["fix/#area#-#word#", "feat/#area#-#word#", "dev-#area#", "chore/bump-#word#", "perf/#area#-#word#"]
+repo = ["app", "platform", "monorepo", "#area#-service"]
+pr = ["212", "347", "418", "561", "1093", "1287", "2044"]
+port = ["3000", "5432", "6379", "8000", "8080", "9090"]
+service = ["api", "db", "redis", "worker", "web", "#area#"]
+process = ["node", "python", "postgres", "redis-server", "#area#"]
+commit_subject = [
+  "fix(#area#): handle empty #word#",
+  "feat(#area#): add #word# support",
+  "refactor(#area#): extract #word.camel#",
+  "test(#area#): cover the #word# edge case",
+  "perf(#area#): cache #word# lookups",
+  "chore: bump #word#",
+  "fix: flaky #area# test",
+  "wip",
+]
+log_line = [
+  "INFO  #area#: request completed in #ms#ms",
+  "WARN  #area#: retrying #word# (attempt #small#/5)",
+  "ERROR #area#: connection reset by peer",
+  "DEBUG #area#: cache miss for #word#:#count#",
+  "INFO  #area#: listening on 0.0.0.0:#port#",
+  "WARN  #area#: slow query (#ms#ms) on #word#s",
 ]
